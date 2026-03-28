@@ -17,6 +17,7 @@
         "noEmit": true
     },
     "include": [
-        "server.ts"
+        "server.ts",
+        "database.ts"
     ]
 }

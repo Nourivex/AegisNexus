@@ -1,0 +1,6 @@
+node_modules/
+aegis-nexus/node_modules/
+*.db
+*.db-shm
+*.db-wal
+github-copilot.token.json

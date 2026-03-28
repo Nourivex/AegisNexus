@@ -5,6 +5,7 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { initDatabase } from "./database.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -52,6 +53,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PERSONA_PATH = path.join(__dirname, "persona.config.json");
+const PERSONA_MD_PATH = path.join(__dirname, "personas", "the_queen.md");
 const TOKEN_PATH = path.join(__dirname, "..", "github-copilot.token.json");
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const PORT = Number(process.env.AEGIS_NEXUS_PORT || 3030);
@@ -60,6 +62,7 @@ const REFRESH_POLL_MS = 5 * 60 * 1000;
 
 const eventClients = new Set<ServerResponse>();
 const sessionState = new Map<string, SessionState>();
+const memoryDb = initDatabase({ baseDir: __dirname, dbFileName: "aegisnexus.db" });
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -324,6 +327,7 @@ function readTextContent(content: unknown): string {
 }
 
 async function callCopilotChat(params: {
+  sessionId: string;
   token: string;
   baseUrl: string;
   model: string;
@@ -332,6 +336,14 @@ async function callCopilotChat(params: {
   meta: JsonRecord;
 }): Promise<{ content: string; model: string }> {
   const endpoint = `${params.baseUrl}/chat/completions`;
+  const personaMarkdown = await readPersonaMarkdown();
+  const history = memoryDb.getChatHistory(params.sessionId, 20);
+  const requestMessages = [
+    { role: "system", content: personaMarkdown },
+    ...history.map((item) => ({ role: item.role, content: item.content })),
+    ...params.messages.filter((msg) => msg.role !== "system"),
+  ];
+
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const res = await fetch(endpoint, {
       method: "POST",
@@ -346,7 +358,7 @@ async function callCopilotChat(params: {
         "User-Agent": "GitHubCopilotChat/0.26.7",
         "X-Request-Id": `aegis-nexus-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       },
-      body: JSON.stringify({ model: params.model, stream: false, messages: params.messages, temperature: 0.2 }),
+      body: JSON.stringify({ model: params.model, stream: false, messages: requestMessages, temperature: 0.2 }),
     });
 
     const raw = await res.text();
@@ -396,6 +408,16 @@ function safeJsonFromText(text: string, fallback: JsonRecord): JsonRecord {
   }
 }
 
+async function readPersonaMarkdown(): Promise<string> {
+  try {
+    const text = await fs.readFile(PERSONA_MD_PATH, "utf8");
+    const trimmed = text.trim();
+    return trimmed || "You are The Queen orchestration manager.";
+  } catch {
+    return "You are The Queen orchestration manager.";
+  }
+}
+
 function parseAgentControl(value: unknown): AgentControl {
   const asObj = (value && typeof value === "object" ? value : {}) as JsonRecord;
   const rawMode = String(asObj.mode || "full").trim().toLowerCase();
@@ -430,6 +452,7 @@ function isLikelyComplexPrompt(input: string): boolean {
 }
 
 async function classifyIntentWithQueen(params: {
+  sessionId: string;
   persona: PersonaConfig;
   auth: { token: string; baseUrl: string };
   selectedModel: string;
@@ -441,6 +464,7 @@ async function classifyIntentWithQueen(params: {
 
   emitLog({ level: "info", scope: "queen", message: "Intent classification start", meta: { agent: "queen" } });
   const classify = await callCopilotChat({
+    sessionId: params.sessionId,
     token: params.auth.token,
     baseUrl: params.auth.baseUrl,
     model: params.selectedModel,
@@ -467,6 +491,7 @@ async function classifyIntentWithQueen(params: {
 }
 
 async function replyDirectByQueen(params: {
+  sessionId: string;
   persona: PersonaConfig;
   auth: { token: string; baseUrl: string };
   selectedModel: string;
@@ -475,6 +500,7 @@ async function replyDirectByQueen(params: {
 }): Promise<ChatResult> {
   emitLog({ level: "info", scope: "queen", message: "Queen direct reply", meta: { agent: "queen", mode: params.mode } });
   const queen = await callCopilotChat({
+    sessionId: params.sessionId,
     token: params.auth.token,
     baseUrl: params.auth.baseUrl,
     model: params.selectedModel,
@@ -515,6 +541,7 @@ async function runOrchestration(params: {
 
   if (params.control.mode === "general") {
     return await replyDirectByQueen({
+      sessionId: params.sessionId,
       persona,
       auth,
       selectedModel,
@@ -524,6 +551,7 @@ async function runOrchestration(params: {
   }
 
   const intent = await classifyIntentWithQueen({
+    sessionId: params.sessionId,
     persona,
     auth,
     selectedModel,
@@ -532,6 +560,7 @@ async function runOrchestration(params: {
 
   if (intent === "general") {
     return await replyDirectByQueen({
+      sessionId: params.sessionId,
       persona,
       auth,
       selectedModel,
@@ -545,6 +574,7 @@ async function runOrchestration(params: {
 
   if (!plannerEnabled && !workerEnabled) {
     return await replyDirectByQueen({
+      sessionId: params.sessionId,
       persona,
       auth,
       selectedModel,
@@ -583,6 +613,7 @@ async function runOrchestration(params: {
       await sleep(plannerDelay);
 
       const planner = await callCopilotChat({
+        sessionId: params.sessionId,
         token: auth.token,
         baseUrl: auth.baseUrl,
         model: selectedModel,
@@ -620,6 +651,7 @@ async function runOrchestration(params: {
         emitLog({ level: "info", scope: "worker", message: `Worker subtask #${idx + 1} start`, meta: { agent: "worker", iteration } });
 
         const worker = await callCopilotChat({
+          sessionId: params.sessionId,
           token: auth.token,
           baseUrl: auth.baseUrl,
           model: selectedModel,
@@ -648,6 +680,7 @@ async function runOrchestration(params: {
 
     const mergeInstruction = String(planned.mergeInstruction || "Gabungkan hasil subtask menjadi jawaban final.");
     const merger = await callCopilotChat({
+      sessionId: params.sessionId,
       token: auth.token,
       baseUrl: auth.baseUrl,
       model: selectedModel,
@@ -672,6 +705,7 @@ async function runOrchestration(params: {
     await sleep(judgeDelay);
 
     const judge = await callCopilotChat({
+      sessionId: params.sessionId,
       token: auth.token,
       baseUrl: auth.baseUrl,
       model: selectedModel,
@@ -827,8 +861,12 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
         return;
       }
 
+      memoryDb.ensureSession(sessionId);
+      memoryDb.addMessage(sessionId, "user", userMessage);
+
       emitLog({ level: "info", scope: "user", message: userMessage, meta: { sessionId, mode: control.mode } });
       const result = await runOrchestration({ sessionId, userMessage, continueApproved, control });
+      memoryDb.addMessage(sessionId, "assistant", result.answer);
       sendJson(res, 200, result as unknown as JsonRecord);
       return;
     }

@@ -21,7 +21,11 @@ Buka: `http://127.0.0.1:3030`
 - Smart intent classification: Queen mendeteksi general vs complex prompt sebelum memutuskan perlu planner/worker atau direct reply.
 - Custom Agent Control UI: mode `general`, `full`, atau `custom` dengan toggle planner/worker.
 - Execution indicator realtime: mode aktif dan agen aktif (Queen/Planner/Worker) tampil di UI + event log.
+- SQLite memory (`aegisnexus.db`) menyimpan sessions/messages dengan pagination history (DESC LIMIT, lalu dibalik ASC).
+- Persona system prompt dibaca dinamis dari `personas/the_queen.md` dan selalu di-inject di index 0 saat request Copilot.
 - Auto-throttle 3-6 detik antar request Copilot.
 - Jika kena HTTP 429, otomatis pause 30 detik lalu retry.
 - Maksimal 3 iterasi auto-loop, lalu minta approval untuk lanjut.
 - Auto-refresh token berjalan ketika sisa masa berlaku <= 30 menit, plus cron check tiap 5 menit.
+
+Detail implementasi ada di `docs/memory-persona-integration.md`.
