@@ -17,6 +17,8 @@ const plannerToggle = requireElement<HTMLInputElement>("plannerToggle");
 const workerToggle = requireElement<HTMLInputElement>("workerToggle");
 const activeMode = requireElement<HTMLDivElement>("activeMode");
 const activeAgent = requireElement<HTMLDivElement>("activeAgent");
+const themeToggle = requireElement<HTMLButtonElement>("themeToggle");
+const themeIcon = requireElement<HTMLImageElement>("themeIcon");
 
 type LogPayload = {
   level?: string;
@@ -47,6 +49,7 @@ let sessionId = crypto.randomUUID();
 let lastUserPrompt = "";
 let waiting = false;
 let needsApproval = false;
+let activeTheme: "dark" | "light" = "dark";
 let agentControl: AgentControl = {
   mode: "full",
   enablePlanner: true,
@@ -67,18 +70,76 @@ function updateActiveAgentIndicator(agentName: string): void {
   activeAgent.textContent = `Agent: ${agentName}`;
 }
 
+function applyTheme(theme: "dark" | "light"): void {
+  activeTheme = theme;
+  document.body.classList.remove("theme-dark", "theme-light");
+  document.body.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
+  themeIcon.src = theme === "dark" ? "/assets/theme-dark.svg" : "/assets/theme-light.svg";
+  themeIcon.alt = theme === "dark" ? "Dark mode" : "Light mode";
+  localStorage.setItem("aegisnexus-theme", theme);
+}
+
+function bootstrapTheme(): void {
+  const stored = localStorage.getItem("aegisnexus-theme");
+  if (stored === "light" || stored === "dark") {
+    applyTheme(stored);
+    return;
+  }
+  applyTheme("dark");
+}
+
 function addChat(role: "user" | "assistant" | "meta", text: string): void {
-  const div = document.createElement("div");
-  div.className = `msg ${role}`;
-  div.textContent = text;
-  chatList.appendChild(div);
+  const row = document.createElement("div");
+  row.className = role === "user" ? "flex justify-end" : "flex justify-start";
+
+  const container = document.createElement("div");
+  container.className =
+    role === "user"
+      ? "flex max-w-[88%] items-start gap-3"
+      : "flex max-w-[88%] items-start gap-3";
+
+  const avatar = document.createElement("div");
+  avatar.className =
+    role === "user"
+      ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-400/25 text-xs font-bold text-cyan-100"
+      : role === "assistant"
+        ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-400/25 text-xs font-bold text-indigo-100"
+        : "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-xs font-bold text-amber-100";
+  avatar.textContent = role === "user" ? "U" : role === "assistant" ? "Q" : "!";
+
+  const bubble = document.createElement("div");
+  bubble.className =
+    role === "user"
+      ? "rounded-2xl rounded-tr-sm bg-cyan-400/15 px-4 py-3 text-sm leading-relaxed text-cyan-50"
+      : role === "assistant"
+        ? "rounded-2xl rounded-tl-sm bg-white/5 px-4 py-3 text-sm leading-relaxed text-gray-100"
+        : "rounded-2xl bg-amber-400/10 px-4 py-3 text-sm leading-relaxed text-amber-100";
+  bubble.textContent = text;
+
+  if (role === "user") {
+    container.appendChild(bubble);
+    container.appendChild(avatar);
+  } else {
+    container.appendChild(avatar);
+    container.appendChild(bubble);
+  }
+
+  row.appendChild(container);
+  chatList.appendChild(row);
   chatList.scrollTop = chatList.scrollHeight;
 }
 
 function addLog(entry: LogPayload): void {
   const item = document.createElement("div");
-  item.className = `log-item ${entry.level || "info"}`;
-  item.textContent = `[${entry.at || new Date().toISOString()}] ${entry.scope || "system"}: ${entry.message || ""}`;
+  const level = String(entry.level || "info");
+  const colorClass =
+    level === "error"
+      ? "text-rose-200"
+      : level === "warn"
+        ? "text-amber-200"
+        : "text-gray-300";
+  item.className = `rounded-xl bg-white/5 px-3 py-2 text-xs leading-relaxed ${colorClass}`;
+  item.textContent = `[${entry.at || new Date().toISOString()}] ${entry.scope || "system"} - ${entry.message || ""}`;
   logList.prepend(item);
 }
 
@@ -199,6 +260,10 @@ workerToggle.addEventListener("change", () => {
   agentControl.enableWorker = workerToggle.checked;
 });
 
+themeToggle.addEventListener("click", () => {
+  applyTheme(activeTheme === "dark" ? "light" : "dark");
+});
+
 const events = new EventSource("/api/events");
 events.onmessage = (event: MessageEvent<string>) => {
   try {
@@ -222,6 +287,7 @@ void loadConfig().catch((error: unknown) => {
   addChat("meta", `Gagal load config: ${error instanceof Error ? error.message : String(error)}`);
 });
 
+bootstrapTheme();
 updateModeIndicator();
 updateControlAvailability();
 updateActiveAgentIndicator("idle");
