@@ -18,7 +18,7 @@ const workerToggle = requireElement<HTMLInputElement>("workerToggle");
 const activeMode = requireElement<HTMLDivElement>("activeMode");
 const activeAgent = requireElement<HTMLDivElement>("activeAgent");
 const themeToggle = requireElement<HTMLButtonElement>("themeToggle");
-const themeIcon = requireElement<HTMLImageElement>("themeIcon");
+const themeIcon = requireElement<HTMLElement>("themeIcon");
 
 type LogPayload = {
   level?: string;
@@ -74,8 +74,11 @@ function applyTheme(theme: "dark" | "light"): void {
   activeTheme = theme;
   document.body.classList.remove("theme-dark", "theme-light");
   document.body.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
-  themeIcon.src = theme === "dark" ? "/assets/theme-dark.svg" : "/assets/theme-light.svg";
-  themeIcon.alt = theme === "dark" ? "Dark mode" : "Light mode";
+  themeIcon.className =
+    theme === "dark"
+      ? "ri-moon-line text-lg text-cyan-200"
+      : "ri-sun-line text-lg text-amber-500";
+  themeToggle.setAttribute("aria-label", theme === "dark" ? "Dark mode active" : "Light mode active");
   localStorage.setItem("aegisnexus-theme", theme);
 }
 
@@ -110,10 +113,10 @@ function addChat(role: "user" | "assistant" | "meta", text: string): void {
   const bubble = document.createElement("div");
   bubble.className =
     role === "user"
-      ? "rounded-2xl rounded-tr-sm bg-cyan-400/15 px-4 py-3 text-sm leading-relaxed text-cyan-50"
+      ? "chat-bubble-user rounded-2xl rounded-tr-sm bg-cyan-400/15 px-4 py-3 text-sm leading-relaxed text-cyan-50"
       : role === "assistant"
-        ? "rounded-2xl rounded-tl-sm bg-white/5 px-4 py-3 text-sm leading-relaxed text-gray-100"
-        : "rounded-2xl bg-amber-400/10 px-4 py-3 text-sm leading-relaxed text-amber-100";
+        ? "chat-bubble-assistant rounded-2xl rounded-tl-sm bg-white/5 px-4 py-3 text-sm leading-relaxed text-gray-100"
+        : "chat-bubble-meta rounded-2xl bg-amber-400/10 px-4 py-3 text-sm leading-relaxed text-amber-100";
   bubble.textContent = text;
 
   if (role === "user") {
@@ -138,7 +141,7 @@ function addLog(entry: LogPayload): void {
       : level === "warn"
         ? "text-amber-200"
         : "text-gray-300";
-  item.className = `rounded-xl bg-white/5 px-3 py-2 text-xs leading-relaxed ${colorClass}`;
+  item.className = `log-item rounded-xl bg-white/5 px-3 py-2 text-xs leading-relaxed ${colorClass}`;
   item.textContent = `[${entry.at || new Date().toISOString()}] ${entry.scope || "system"} - ${entry.message || ""}`;
   logList.prepend(item);
 }
