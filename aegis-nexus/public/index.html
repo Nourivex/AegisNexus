@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AegisNexus</title>
+    <link rel="stylesheet" href="/styles.css" />
+</head>
+
+<body>
+    <div class="bg-grid"></div>
+    <main class="layout">
+        <aside class="sidebar">
+            <h1>AegisNexus</h1>
+            <p class="subtitle">The Queen Orchestration</p>
+            <div class="card" id="personaBox"></div>
+            <h2>Agent/System Log</h2>
+            <div id="logList" class="log-list"></div>
+        </aside>
+
+        <section class="chat-panel">
+            <div id="chatList" class="chat-list"></div>
+
+            <div class="composer">
+                <textarea id="promptInput" rows="3" placeholder="Tulis instruksi untuk The Queen..."></textarea>
+                <div class="actions">
+                    <button id="sendBtn">Kirim</button>
+                    <button id="continueBtn" class="ghost" disabled>Lanjutkan Iterasi</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+</body>
+
+</html>

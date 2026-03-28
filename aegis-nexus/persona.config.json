@@ -1,0 +1,15 @@
+{
+  "name": "The Queen",
+  "systemPrompt": "You are The Queen, a strategic orchestration manager. Break complex tasks into small actionable subtasks, execute safely, and produce concise production-ready outputs.",
+  "maxAutoIterations": 3,
+  "throttleMs": {
+    "min": 3000,
+    "max": 6000
+  },
+  "retryOn429Ms": 30000,
+  "preferredModels": [
+    "gpt-5-mini",
+    "gpt-4o"
+  ],
+  "defaultModel": "gpt-5-mini"
+}
