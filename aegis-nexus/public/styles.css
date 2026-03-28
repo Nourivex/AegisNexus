@@ -77,6 +77,52 @@ body {
     font-size: 0.92rem;
 }
 
+.card h3 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.field select {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px;
+    font: inherit;
+    background: #fff;
+}
+
+.switch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.status-card {
+    display: grid;
+    gap: 8px;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid var(--line);
+    font-size: 0.83rem;
+    width: fit-content;
+}
+
+.pill.muted {
+    color: var(--muted);
+}
+
 .sidebar h2 {
     margin: 8px 0 0;
     font-size: 1rem;

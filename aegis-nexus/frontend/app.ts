@@ -12,6 +12,11 @@ const personaBox = requireElement<HTMLDivElement>("personaBox");
 const promptInput = requireElement<HTMLTextAreaElement>("promptInput");
 const sendBtn = requireElement<HTMLButtonElement>("sendBtn");
 const continueBtn = requireElement<HTMLButtonElement>("continueBtn");
+const modeSelect = requireElement<HTMLSelectElement>("modeSelect");
+const plannerToggle = requireElement<HTMLInputElement>("plannerToggle");
+const workerToggle = requireElement<HTMLInputElement>("workerToggle");
+const activeMode = requireElement<HTMLDivElement>("activeMode");
+const activeAgent = requireElement<HTMLDivElement>("activeAgent");
 
 type LogPayload = {
   level?: string;
@@ -25,12 +30,42 @@ type ChatResult = {
   model: string;
   iteration: number;
   needsApproval: boolean;
+  execution?: {
+    mode: string;
+    path: string;
+    activeAgents: string[];
+  };
+};
+
+type AgentControl = {
+  mode: "general" | "full" | "custom";
+  enablePlanner: boolean;
+  enableWorker: boolean;
 };
 
 let sessionId = crypto.randomUUID();
 let lastUserPrompt = "";
 let waiting = false;
 let needsApproval = false;
+let agentControl: AgentControl = {
+  mode: "full",
+  enablePlanner: true,
+  enableWorker: true,
+};
+
+function updateModeIndicator(): void {
+  activeMode.textContent = `Mode: ${agentControl.mode}`;
+}
+
+function updateControlAvailability(): void {
+  const custom = agentControl.mode === "custom";
+  plannerToggle.disabled = !custom;
+  workerToggle.disabled = !custom;
+}
+
+function updateActiveAgentIndicator(agentName: string): void {
+  activeAgent.textContent = `Agent: ${agentName}`;
+}
 
 function addChat(role: "user" | "assistant" | "meta", text: string): void {
   const div = document.createElement("div");
@@ -52,8 +87,18 @@ async function loadConfig(): Promise<void> {
   const cfg = (await res.json()) as {
     persona: { name: string; maxAutoIterations: number };
     preferredModels: string[];
+    defaultAgentControl?: AgentControl;
   };
   personaBox.textContent = `${cfg.persona.name} | max loop: ${cfg.persona.maxAutoIterations} | models: ${cfg.preferredModels.join(", ")}`;
+
+  if (cfg.defaultAgentControl) {
+    agentControl = cfg.defaultAgentControl;
+  }
+  modeSelect.value = agentControl.mode;
+  plannerToggle.checked = agentControl.enablePlanner;
+  workerToggle.checked = agentControl.enableWorker;
+  updateModeIndicator();
+  updateControlAvailability();
 }
 
 function setBusy(state: boolean): void {
@@ -70,6 +115,7 @@ async function callChat(params: { message: string; continueApproved: boolean }):
       message: params.message,
       continueApproved: params.continueApproved,
       sessionId,
+      agentControl,
     }),
   });
 
@@ -83,6 +129,7 @@ async function callChat(params: { message: string; continueApproved: boolean }):
     model: String(data.model || "unknown"),
     iteration: Number(data.iteration || 0),
     needsApproval: Boolean(data.needsApproval),
+    execution: data.execution as ChatResult["execution"],
   };
 }
 
@@ -107,8 +154,17 @@ async function runChat(continueApproved = false): Promise<void> {
     addChat("assistant", `${result.answer}\n\n(model: ${result.model}, iterasi: ${result.iteration})`);
     needsApproval = result.needsApproval;
     continueBtn.disabled = !needsApproval;
+
+    if (result.execution) {
+      activeMode.textContent = `Mode: ${result.execution.mode}`;
+      const active = result.execution.activeAgents.length
+        ? result.execution.activeAgents.join(", ")
+        : "queen";
+      updateActiveAgentIndicator(active);
+    }
   } catch (error) {
     addChat("meta", `Error: ${error instanceof Error ? error.message : String(error)}`);
+    updateActiveAgentIndicator("error");
   } finally {
     setBusy(false);
   }
@@ -128,10 +184,31 @@ promptInput.addEventListener("keydown", (event: KeyboardEvent) => {
   }
 });
 
+modeSelect.addEventListener("change", () => {
+  const nextMode = modeSelect.value as AgentControl["mode"];
+  agentControl.mode = nextMode;
+  updateModeIndicator();
+  updateControlAvailability();
+});
+
+plannerToggle.addEventListener("change", () => {
+  agentControl.enablePlanner = plannerToggle.checked;
+});
+
+workerToggle.addEventListener("change", () => {
+  agentControl.enableWorker = workerToggle.checked;
+});
+
 const events = new EventSource("/api/events");
 events.onmessage = (event: MessageEvent<string>) => {
   try {
-    addLog(JSON.parse(event.data) as LogPayload);
+    const payload = JSON.parse(event.data) as LogPayload;
+    addLog(payload);
+
+    const scope = String(payload.scope || "").toLowerCase();
+    if (scope === "queen" || scope === "planner" || scope === "worker") {
+      updateActiveAgentIndicator(scope);
+    }
   } catch {
     addLog({ level: "warn", scope: "events", message: event.data });
   }
@@ -144,3 +221,7 @@ events.onerror = () => {
 void loadConfig().catch((error: unknown) => {
   addChat("meta", `Gagal load config: ${error instanceof Error ? error.message : String(error)}`);
 });
+
+updateModeIndicator();
+updateControlAvailability();
+updateActiveAgentIndicator("idle");

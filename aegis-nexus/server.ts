@@ -33,6 +33,19 @@ type ChatResult = {
   model: string;
   iteration: number;
   needsApproval: boolean;
+  execution: {
+    mode: AgentMode;
+    path: "queen-direct" | "orchestration";
+    activeAgents: string[];
+  };
+};
+
+type AgentMode = "general" | "full" | "custom";
+
+type AgentControl = {
+  mode: AgentMode;
+  enablePlanner: boolean;
+  enableWorker: boolean;
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,7 +53,10 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PERSONA_PATH = path.join(__dirname, "persona.config.json");
 const TOKEN_PATH = path.join(__dirname, "..", "github-copilot.token.json");
+const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const PORT = Number(process.env.AEGIS_NEXUS_PORT || 3030);
+const REFRESH_THRESHOLD_MS = 30 * 60 * 1000;
+const REFRESH_POLL_MS = 5 * 60 * 1000;
 
 const eventClients = new Set<ServerResponse>();
 const sessionState = new Map<string, SessionState>();
@@ -100,21 +116,168 @@ async function loadPersonaConfig(): Promise<PersonaConfig> {
   };
 }
 
-async function loadTokenFile(): Promise<{ token: string; baseUrl: string }> {
+type TokenStore = {
+  githubAccessToken: string;
+  copilotSessionToken: string;
+  baseUrl: string;
+  expiresAt: number;
+  updatedAt?: number;
+};
+
+async function readTokenStore(): Promise<TokenStore> {
   const tokenJson = await readJsonFile(TOKEN_PATH, "token file github-copilot.token.json");
+  const githubAccessToken = String(tokenJson.githubAccessToken || "").trim();
   const token = String(tokenJson.copilotSessionToken || "").trim();
   const baseUrl = String(tokenJson.baseUrl || "https://api.githubcopilot.com").trim().replace(/\/$/, "");
   const expiresAt = Number(tokenJson.expiresAt || 0);
+
+  if (!githubAccessToken) {
+    throw new Error("githubAccessToken kosong di token file. Jalankan login ulang dari CLI.");
+  }
 
   if (!token) {
     throw new Error("copilotSessionToken kosong di token file.");
   }
 
-  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
-    throw new Error("Token Copilot expired. Jalankan login ulang dari CLI auth.");
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+    throw new Error("expiresAt token tidak valid di token file.");
   }
 
-  return { token, baseUrl };
+  return {
+    githubAccessToken,
+    copilotSessionToken: token,
+    baseUrl,
+    expiresAt,
+    updatedAt: Number(tokenJson.updatedAt || Date.now()),
+  };
+}
+
+async function writeTokenStore(store: TokenStore): Promise<void> {
+  await fs.writeFile(
+    TOKEN_PATH,
+    `${JSON.stringify(
+      {
+        provider: "github-copilot",
+        githubAccessToken: store.githubAccessToken,
+        copilotSessionToken: store.copilotSessionToken,
+        baseUrl: store.baseUrl,
+        expiresAt: store.expiresAt,
+        updatedAt: Date.now(),
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+}
+
+function parseExpiresAtMs(expiresAtRaw: unknown): number {
+  if (typeof expiresAtRaw === "number" && Number.isFinite(expiresAtRaw)) {
+    return expiresAtRaw > 10_000_000_000 ? expiresAtRaw : expiresAtRaw * 1000;
+  }
+
+  if (typeof expiresAtRaw === "string" && expiresAtRaw.trim()) {
+    const parsed = Number.parseInt(expiresAtRaw, 10);
+    if (!Number.isFinite(parsed)) {
+      throw new Error("expires_at tidak valid dari endpoint Copilot");
+    }
+    return parsed > 10_000_000_000 ? parsed : parsed * 1000;
+  }
+
+  throw new Error("expires_at tidak tersedia dari endpoint Copilot");
+}
+
+function deriveBaseUrlFromToken(token: string): string {
+  const match = token.match(/(?:^|;)\s*proxy-ep=([^;\s]+)/i);
+  const proxyEp = match?.[1]?.trim();
+  if (!proxyEp) {
+    return "https://api.githubcopilot.com";
+  }
+  const host = proxyEp.replace(/^https?:\/\//i, "").replace(/^proxy\./i, "api.");
+  return host ? `https://${host}` : "https://api.githubcopilot.com";
+}
+
+async function refreshCopilotSessionLocal(githubAccessToken: string): Promise<{
+  token: string;
+  baseUrl: string;
+  expiresAt: number;
+  source: string;
+}> {
+  const res = await fetch(COPILOT_TOKEN_URL, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${githubAccessToken}`,
+      "User-Agent": "GitHubCopilotChat/0.26.7",
+    },
+  });
+
+  const raw = await res.text();
+  const json = (raw.trim() ? JSON.parse(raw) : {}) as JsonRecord;
+
+  if (!res.ok) {
+    const detail =
+      ((json.error as JsonRecord | undefined)?.message as string | undefined) ||
+      (json.message as string | undefined) ||
+      `HTTP ${res.status}`;
+    throw new Error(`Refresh Copilot session gagal: ${detail}`);
+  }
+
+  const token = String(json.token || "").trim();
+  if (!token) {
+    throw new Error("Refresh Copilot session gagal: token kosong.");
+  }
+
+  return {
+    token,
+    baseUrl: deriveBaseUrlFromToken(token),
+    expiresAt: parseExpiresAtMs(json.expires_at),
+    source: "aegis-nexus-local-refresh",
+  };
+}
+
+async function ensureFreshCopilotAuth(params: {
+  reason: string;
+}): Promise<{ token: string; baseUrl: string }> {
+  const tokenStore = await readTokenStore();
+  const remainingMs = tokenStore.expiresAt - Date.now();
+
+  if (remainingMs > REFRESH_THRESHOLD_MS) {
+    return {
+      token: tokenStore.copilotSessionToken,
+      baseUrl: tokenStore.baseUrl,
+    };
+  }
+
+  emitLog({
+    level: "info",
+    scope: "auth-refresh",
+    message: `Token mendekati expiry, refresh dipicu (${params.reason})`,
+    meta: { remainingMs },
+  });
+
+  const refreshed = await refreshCopilotSessionLocal(tokenStore.githubAccessToken);
+
+  const nextStore: TokenStore = {
+    githubAccessToken: tokenStore.githubAccessToken,
+    copilotSessionToken: refreshed.token,
+    baseUrl: refreshed.baseUrl,
+    expiresAt: refreshed.expiresAt,
+    updatedAt: Date.now(),
+  };
+
+  await writeTokenStore(nextStore);
+  emitLog({
+    level: "info",
+    scope: "auth-refresh",
+    message: `Refresh token sukses dari ${refreshed.source}`,
+    meta: { expiresAt: refreshed.expiresAt },
+  });
+
+  return {
+    token: nextStore.copilotSessionToken,
+    baseUrl: nextStore.baseUrl,
+  };
 }
 
 async function readBodyJson(req: IncomingMessage): Promise<JsonRecord> {
@@ -233,15 +396,162 @@ function safeJsonFromText(text: string, fallback: JsonRecord): JsonRecord {
   }
 }
 
+function parseAgentControl(value: unknown): AgentControl {
+  const asObj = (value && typeof value === "object" ? value : {}) as JsonRecord;
+  const rawMode = String(asObj.mode || "full").trim().toLowerCase();
+  const mode: AgentMode = rawMode === "general" || rawMode === "custom" ? (rawMode as AgentMode) : "full";
+  return {
+    mode,
+    enablePlanner: Boolean(asObj.enablePlanner ?? true),
+    enableWorker: Boolean(asObj.enableWorker ?? true),
+  };
+}
+
+function isLikelyComplexPrompt(input: string): boolean {
+  const text = input.toLowerCase();
+  const markers = [
+    "buat",
+    "implement",
+    "arsitektur",
+    "multi",
+    "langkah",
+    "workflow",
+    "debug",
+    "refactor",
+    "riset",
+    "integrasi",
+    "backend",
+    "frontend",
+    "database",
+    "api",
+    "docker",
+  ];
+  return markers.some((marker) => text.includes(marker));
+}
+
+async function classifyIntentWithQueen(params: {
+  persona: PersonaConfig;
+  auth: { token: string; baseUrl: string };
+  selectedModel: string;
+  userMessage: string;
+}): Promise<"general" | "complex"> {
+  if (isLikelyComplexPrompt(params.userMessage)) {
+    return "complex";
+  }
+
+  emitLog({ level: "info", scope: "queen", message: "Intent classification start", meta: { agent: "queen" } });
+  const classify = await callCopilotChat({
+    token: params.auth.token,
+    baseUrl: params.auth.baseUrl,
+    model: params.selectedModel,
+    retryOn429Ms: params.persona.retryOn429Ms,
+    meta: { stage: "intent-classification" },
+    messages: [
+      {
+        role: "system",
+        content: [
+          params.persona.systemPrompt,
+          "Classify input intent.",
+          'Return STRICT JSON: {"intent":"general"|"complex","reason":"..."}',
+          "general = casual question/chitchat/simple answer.",
+          "complex = multi-step build/research/debug/integration tasks.",
+        ].join("\n"),
+      },
+      { role: "user", content: params.userMessage },
+    ],
+  });
+  const decision = safeJsonFromText(classify.content, { intent: "general" });
+  const intent = String(decision.intent || "general").toLowerCase();
+  emitLog({ level: "info", scope: "queen", message: `Intent: ${intent}`, meta: { agent: "queen" } });
+  return intent === "complex" ? "complex" : "general";
+}
+
+async function replyDirectByQueen(params: {
+  persona: PersonaConfig;
+  auth: { token: string; baseUrl: string };
+  selectedModel: string;
+  userMessage: string;
+  mode: AgentMode;
+}): Promise<ChatResult> {
+  emitLog({ level: "info", scope: "queen", message: "Queen direct reply", meta: { agent: "queen", mode: params.mode } });
+  const queen = await callCopilotChat({
+    token: params.auth.token,
+    baseUrl: params.auth.baseUrl,
+    model: params.selectedModel,
+    retryOn429Ms: params.persona.retryOn429Ms,
+    meta: { stage: "queen-direct" },
+    messages: [
+      {
+        role: "system",
+        content: `${params.persona.systemPrompt}\nAnswer directly and clearly without delegating to other agents.`,
+      },
+      { role: "user", content: params.userMessage },
+    ],
+  });
+
+  return {
+    answer: queen.content,
+    model: queen.model,
+    iteration: 1,
+    needsApproval: false,
+    execution: {
+      mode: params.mode,
+      path: "queen-direct",
+      activeAgents: ["queen"],
+    },
+  };
+}
+
 async function runOrchestration(params: {
   sessionId: string;
   userMessage: string;
   continueApproved: boolean;
+  control: AgentControl;
 }): Promise<ChatResult> {
   const persona = await loadPersonaConfig();
-  const auth = await loadTokenFile();
+  const auth = await ensureFreshCopilotAuth({ reason: "request-start" });
   const preferred = persona.preferredModels.length ? persona.preferredModels : [persona.defaultModel];
   const selectedModel = preferred.includes(persona.defaultModel) ? persona.defaultModel : preferred[0];
+
+  if (params.control.mode === "general") {
+    return await replyDirectByQueen({
+      persona,
+      auth,
+      selectedModel,
+      userMessage: params.userMessage,
+      mode: params.control.mode,
+    });
+  }
+
+  const intent = await classifyIntentWithQueen({
+    persona,
+    auth,
+    selectedModel,
+    userMessage: params.userMessage,
+  });
+
+  if (intent === "general") {
+    return await replyDirectByQueen({
+      persona,
+      auth,
+      selectedModel,
+      userMessage: params.userMessage,
+      mode: params.control.mode,
+    });
+  }
+
+  const plannerEnabled = params.control.mode === "full" ? true : params.control.enablePlanner;
+  const workerEnabled = params.control.mode === "full" ? true : params.control.enableWorker;
+
+  if (!plannerEnabled && !workerEnabled) {
+    return await replyDirectByQueen({
+      persona,
+      auth,
+      selectedModel,
+      userMessage: params.userMessage,
+      mode: params.control.mode,
+    });
+  }
 
   const previous = sessionState.get(params.sessionId);
   let seedTask = params.userMessage.trim();
@@ -255,38 +565,48 @@ async function runOrchestration(params: {
 
   let finalAnswer = "";
   let usedModel = selectedModel;
+  const activeAgents = ["queen", plannerEnabled ? "planner" : "", workerEnabled ? "worker" : ""].filter(
+    Boolean,
+  );
 
   for (let iteration = iterationStart; iteration <= persona.maxAutoIterations; iteration += 1) {
     emitLog({ level: "info", scope: "orchestrator", message: `Iterasi ${iteration} dimulai`, meta: { sessionId: params.sessionId } });
 
-    const plannerDelay = randomInt(persona.throttleMs.min, persona.throttleMs.max);
-    await sleep(plannerDelay);
-
-    const planner = await callCopilotChat({
-      token: auth.token,
-      baseUrl: auth.baseUrl,
-      model: selectedModel,
-      retryOn429Ms: persona.retryOn429Ms,
-      meta: { stage: "planner", iteration },
-      messages: [
-        {
-          role: "system",
-          content: [
-            `${persona.systemPrompt}`,
-            "Return STRICT JSON with shape:",
-            '{"subtasks":["..."],"mergeInstruction":"..."}',
-            "Max subtasks: 3",
-          ].join("\n"),
-        },
-        { role: "user", content: seedTask },
-      ],
-    });
-
-    usedModel = planner.model;
-    const planned = safeJsonFromText(planner.content, {
+    let planned: JsonRecord = {
       subtasks: [seedTask],
       mergeInstruction: "Gabungkan hasil subtask menjadi jawaban final yang jelas.",
-    });
+    };
+
+    if (plannerEnabled) {
+      emitLog({ level: "info", scope: "planner", message: "Planner aktif", meta: { agent: "planner", iteration } });
+      const plannerDelay = randomInt(persona.throttleMs.min, persona.throttleMs.max);
+      await sleep(plannerDelay);
+
+      const planner = await callCopilotChat({
+        token: auth.token,
+        baseUrl: auth.baseUrl,
+        model: selectedModel,
+        retryOn429Ms: persona.retryOn429Ms,
+        meta: { stage: "planner", iteration },
+        messages: [
+          {
+            role: "system",
+            content: [
+              `${persona.systemPrompt}`,
+              "Return STRICT JSON with shape:",
+              '{"subtasks":["..."],"mergeInstruction":"..."}',
+              "Max subtasks: 3",
+            ].join("\n"),
+          },
+          { role: "user", content: seedTask },
+        ],
+      });
+
+      usedModel = planner.model;
+      planned = safeJsonFromText(planner.content, planned);
+    } else {
+      emitLog({ level: "info", scope: "planner", message: "Planner dimatikan (custom override)", meta: { agent: "planner", iteration } });
+    }
 
     const subtasksRaw = Array.isArray(planned.subtasks) ? planned.subtasks : [seedTask];
     const subtasks = subtasksRaw.map((v) => String(v).trim()).filter(Boolean).slice(0, 3);
@@ -294,27 +614,33 @@ async function runOrchestration(params: {
 
     const taskOutputs: Array<{ subtask: string; output: string }> = [];
     for (let idx = 0; idx < subtasks.length; idx += 1) {
-      const throttle = randomInt(persona.throttleMs.min, persona.throttleMs.max);
-      await sleep(throttle);
+      if (workerEnabled) {
+        const throttle = randomInt(persona.throttleMs.min, persona.throttleMs.max);
+        await sleep(throttle);
+        emitLog({ level: "info", scope: "worker", message: `Worker subtask #${idx + 1} start`, meta: { agent: "worker", iteration } });
 
-      const worker = await callCopilotChat({
-        token: auth.token,
-        baseUrl: auth.baseUrl,
-        model: selectedModel,
-        retryOn429Ms: persona.retryOn429Ms,
-        meta: { stage: "worker", iteration, subtask: idx + 1 },
-        messages: [
-          {
-            role: "system",
-            content: `${persona.systemPrompt}\nYou are executing one subtask. Keep response concise and actionable.`,
-          },
-          { role: "user", content: `Subtask #${idx + 1}: ${subtasks[idx]}` },
-        ],
-      });
+        const worker = await callCopilotChat({
+          token: auth.token,
+          baseUrl: auth.baseUrl,
+          model: selectedModel,
+          retryOn429Ms: persona.retryOn429Ms,
+          meta: { stage: "worker", iteration, subtask: idx + 1 },
+          messages: [
+            {
+              role: "system",
+              content: `${persona.systemPrompt}\nYou are executing one subtask. Keep response concise and actionable.`,
+            },
+            { role: "user", content: `Subtask #${idx + 1}: ${subtasks[idx]}` },
+          ],
+        });
 
-      usedModel = worker.model;
-      taskOutputs.push({ subtask: subtasks[idx], output: worker.content });
-      emitLog({ level: "info", scope: "worker", message: `Subtask #${idx + 1} selesai`, meta: { iteration } });
+        usedModel = worker.model;
+        taskOutputs.push({ subtask: subtasks[idx], output: worker.content });
+        emitLog({ level: "info", scope: "worker", message: `Subtask #${idx + 1} selesai`, meta: { agent: "worker", iteration } });
+      } else {
+        taskOutputs.push({ subtask: subtasks[idx], output: `Worker disabled by custom override. Pending: ${subtasks[idx]}` });
+        emitLog({ level: "info", scope: "worker", message: `Worker dimatikan (subtask #${idx + 1})`, meta: { agent: "worker", iteration } });
+      }
     }
 
     const mergeDelay = randomInt(persona.throttleMs.min, persona.throttleMs.max);
@@ -381,6 +707,11 @@ async function runOrchestration(params: {
         model: usedModel,
         iteration,
         needsApproval: false,
+        execution: {
+          mode: params.control.mode,
+          path: "orchestration",
+          activeAgents,
+        },
       };
     }
 
@@ -397,6 +728,11 @@ async function runOrchestration(params: {
         model: usedModel,
         iteration,
         needsApproval: true,
+        execution: {
+          mode: params.control.mode,
+          path: "orchestration",
+          activeAgents,
+        },
       };
     }
 
@@ -408,6 +744,11 @@ async function runOrchestration(params: {
     model: usedModel,
     iteration: persona.maxAutoIterations,
     needsApproval: true,
+    execution: {
+      mode: params.control.mode,
+      path: "orchestration",
+      activeAgents,
+    },
   };
 }
 
@@ -451,6 +792,11 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
       sendJson(res, 200, {
         persona: { name: persona.name, maxAutoIterations: persona.maxAutoIterations },
         preferredModels: persona.preferredModels,
+        defaultAgentControl: {
+          mode: "full",
+          enablePlanner: true,
+          enableWorker: true,
+        },
       });
       return;
     }
@@ -474,14 +820,15 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
       const userMessage = String(body.message || "").trim();
       const sessionId = String(body.sessionId || "default").trim() || "default";
       const continueApproved = Boolean(body.continueApproved);
+      const control = parseAgentControl(body.agentControl);
 
       if (!userMessage) {
         sendJson(res, 400, { error: "message wajib diisi" });
         return;
       }
 
-      emitLog({ level: "info", scope: "user", message: userMessage, meta: { sessionId } });
-      const result = await runOrchestration({ sessionId, userMessage, continueApproved });
+      emitLog({ level: "info", scope: "user", message: userMessage, meta: { sessionId, mode: control.mode } });
+      const result = await runOrchestration({ sessionId, userMessage, continueApproved, control });
       sendJson(res, 200, result as unknown as JsonRecord);
       return;
     }
@@ -498,3 +845,10 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`AegisNexus running at http://127.0.0.1:${PORT}`);
   console.log(`Token source: ${TOKEN_PATH}`);
 });
+
+setInterval(() => {
+  void ensureFreshCopilotAuth({ reason: "cron" }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    emitLog({ level: "error", scope: "auth-refresh", message });
+  });
+}, REFRESH_POLL_MS);

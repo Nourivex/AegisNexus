@@ -12,10 +12,31 @@ const personaBox = requireElement("personaBox");
 const promptInput = requireElement("promptInput");
 const sendBtn = requireElement("sendBtn");
 const continueBtn = requireElement("continueBtn");
+const modeSelect = requireElement("modeSelect");
+const plannerToggle = requireElement("plannerToggle");
+const workerToggle = requireElement("workerToggle");
+const activeMode = requireElement("activeMode");
+const activeAgent = requireElement("activeAgent");
 let sessionId = crypto.randomUUID();
 let lastUserPrompt = "";
 let waiting = false;
 let needsApproval = false;
+let agentControl = {
+    mode: "full",
+    enablePlanner: true,
+    enableWorker: true,
+};
+function updateModeIndicator() {
+    activeMode.textContent = `Mode: ${agentControl.mode}`;
+}
+function updateControlAvailability() {
+    const custom = agentControl.mode === "custom";
+    plannerToggle.disabled = !custom;
+    workerToggle.disabled = !custom;
+}
+function updateActiveAgentIndicator(agentName) {
+    activeAgent.textContent = `Agent: ${agentName}`;
+}
 function addChat(role, text) {
     const div = document.createElement("div");
     div.className = `msg ${role}`;
@@ -33,6 +54,14 @@ async function loadConfig() {
     const res = await fetch("/api/config");
     const cfg = (await res.json());
     personaBox.textContent = `${cfg.persona.name} | max loop: ${cfg.persona.maxAutoIterations} | models: ${cfg.preferredModels.join(", ")}`;
+    if (cfg.defaultAgentControl) {
+        agentControl = cfg.defaultAgentControl;
+    }
+    modeSelect.value = agentControl.mode;
+    plannerToggle.checked = agentControl.enablePlanner;
+    workerToggle.checked = agentControl.enableWorker;
+    updateModeIndicator();
+    updateControlAvailability();
 }
 function setBusy(state) {
     waiting = state;
@@ -47,6 +76,7 @@ async function callChat(params) {
             message: params.message,
             continueApproved: params.continueApproved,
             sessionId,
+            agentControl,
         }),
     });
     const data = (await res.json());
@@ -58,6 +88,7 @@ async function callChat(params) {
         model: String(data.model || "unknown"),
         iteration: Number(data.iteration || 0),
         needsApproval: Boolean(data.needsApproval),
+        execution: data.execution,
     };
 }
 async function runChat(continueApproved = false) {
@@ -79,9 +110,17 @@ async function runChat(continueApproved = false) {
         addChat("assistant", `${result.answer}\n\n(model: ${result.model}, iterasi: ${result.iteration})`);
         needsApproval = result.needsApproval;
         continueBtn.disabled = !needsApproval;
+        if (result.execution) {
+            activeMode.textContent = `Mode: ${result.execution.mode}`;
+            const active = result.execution.activeAgents.length
+                ? result.execution.activeAgents.join(", ")
+                : "queen";
+            updateActiveAgentIndicator(active);
+        }
     }
     catch (error) {
         addChat("meta", `Error: ${error instanceof Error ? error.message : String(error)}`);
+        updateActiveAgentIndicator("error");
     }
     finally {
         setBusy(false);
@@ -98,10 +137,27 @@ promptInput.addEventListener("keydown", (event) => {
         void runChat(false);
     }
 });
+modeSelect.addEventListener("change", () => {
+    const nextMode = modeSelect.value;
+    agentControl.mode = nextMode;
+    updateModeIndicator();
+    updateControlAvailability();
+});
+plannerToggle.addEventListener("change", () => {
+    agentControl.enablePlanner = plannerToggle.checked;
+});
+workerToggle.addEventListener("change", () => {
+    agentControl.enableWorker = workerToggle.checked;
+});
 const events = new EventSource("/api/events");
 events.onmessage = (event) => {
     try {
-        addLog(JSON.parse(event.data));
+        const payload = JSON.parse(event.data);
+        addLog(payload);
+        const scope = String(payload.scope || "").toLowerCase();
+        if (scope === "queen" || scope === "planner" || scope === "worker") {
+            updateActiveAgentIndicator(scope);
+        }
     }
     catch {
         addLog({ level: "warn", scope: "events", message: event.data });
@@ -113,3 +169,6 @@ events.onerror = () => {
 void loadConfig().catch((error) => {
     addChat("meta", `Gagal load config: ${error instanceof Error ? error.message : String(error)}`);
 });
+updateModeIndicator();
+updateControlAvailability();
+updateActiveAgentIndicator("idle");

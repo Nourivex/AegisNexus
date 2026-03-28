@@ -15,6 +15,33 @@
             <h1>AegisNexus</h1>
             <p class="subtitle">The Queen Orchestration</p>
             <div class="card" id="personaBox"></div>
+
+            <div class="card">
+                <h3>Agent Control</h3>
+                <label class="field">
+                    Mode
+                    <select id="modeSelect">
+                        <option value="general">General Mode (Queen only)</option>
+                        <option value="full" selected>Full Orchestration</option>
+                        <option value="custom">Custom Override</option>
+                    </select>
+                </label>
+                <label class="field switch-row">
+                    <input type="checkbox" id="plannerToggle" checked />
+                    Enable Planner
+                </label>
+                <label class="field switch-row">
+                    <input type="checkbox" id="workerToggle" checked />
+                    Enable Worker
+                </label>
+            </div>
+
+            <div class="card status-card">
+                <h3>Execution Indicator</h3>
+                <div id="activeMode" class="pill">Mode: full</div>
+                <div id="activeAgent" class="pill muted">Agent: idle</div>
+            </div>
+
             <h2>Agent/System Log</h2>
             <div id="logList" class="log-list"></div>
         </aside>
