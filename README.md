@@ -24,3 +24,7 @@ Catatan:
 - Model yang dipakai dibatasi ke: `gpt-5-mini` atau `gpt-4o`.
 - Jika token expired atau invalid, jalankan `login` lagi.
 - Script ini hanya untuk pengujian alur autentikasi dan koneksi endpoint.
+
+Dokumentasi progres hari ini:
+
+- `docs/progress-2026-03-28.md`

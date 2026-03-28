@@ -29,3 +29,5 @@ Buka: `http://127.0.0.1:3030`
 - Auto-refresh token berjalan ketika sisa masa berlaku <= 30 menit, plus cron check tiap 5 menit.
 
 Detail implementasi ada di `docs/memory-persona-integration.md`.
+
+Ringkasan progres lintas Aegis Bridge + AegisNexus ada di `../docs/progress-2026-03-28.md`.
