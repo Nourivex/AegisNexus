@@ -1,27 +1,34 @@
 export function createSidebar(options) {
     const element = document.createElement("aside");
     element.className =
-        "sidebar-panel flex max-h-[calc(100vh-2rem)] flex-col rounded-3xl bg-white/5 p-4 shadow-[0_0_45px_rgba(0,0,0,0.35)] ring-1 ring-white/10 backdrop-blur-xl lg:max-h-[calc(100vh-3rem)]";
+        "sidebar-panel flex h-screen w-[320px] shrink-0 flex-col bg-[#10151d] p-4 shadow-[0_0_45px_rgba(0,0,0,0.35)] ring-1 ring-white/10 backdrop-blur-xl transition-all duration-300";
     element.innerHTML = `
     <div class="mb-4 flex items-start justify-between gap-3">
-      <div>
+      <div class="sidebar-brand">
         <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
           <i class="ri-shield-flash-line text-cyan-300"></i>
           <span>AegisNexus</span>
         </h1>
         <p class="text-sm text-gray-400">The Queen Orchestration Core</p>
       </div>
-      <button id="themeToggle"
-        class="theme-toggle-btn inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20"
-        aria-label="Toggle theme">
-        <i id="themeIcon" class="ri-moon-line text-lg text-cyan-200"></i>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="themeToggle"
+          class="theme-toggle-btn inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20"
+          aria-label="Toggle theme">
+          <i id="themeIcon" class="ri-moon-line text-lg text-cyan-200"></i>
+        </button>
+        <button id="collapseToggle"
+          class="collapse-toggle-btn inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20"
+          aria-label="Toggle sidebar">
+          <i id="collapseIcon" class="ri-layout-4-line text-lg text-black-200"></i>
+        </button>
+      </div>
     </div>
 
     <div id="personaBox"
-      class="card-panel mb-4 rounded-2xl bg-white/5 p-3 text-sm text-gray-300 ring-1 ring-white/10"></div>
+      class="card-panel sidebar-expand-only mb-4 rounded-2xl bg-white/5 p-3 text-sm text-gray-300 ring-1 ring-white/10"></div>
 
-    <div class="card-panel mb-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+    <div class="card-panel sidebar-expand-only mb-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
       <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-300">Agent Control</h2>
 
       <label class="mb-3 block text-xs text-gray-400">Routing Mode</label>
@@ -50,7 +57,7 @@ export function createSidebar(options) {
       </div>
     </div>
 
-    <div class="card-panel mb-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+    <div class="card-panel sidebar-expand-only mb-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
       <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-300">Execution Indicator</h2>
       <div id="activeMode"
         class="mb-2 inline-flex rounded-full bg-indigo-400/15 px-3 py-1 text-xs font-medium text-indigo-200 ring-1 ring-indigo-300/30">
@@ -62,8 +69,8 @@ export function createSidebar(options) {
       </div>
     </div>
 
-    <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Agent/System Log</h2>
-    <div id="logList" class="log-surface no-scrollbar flex-1 space-y-2 overflow-auto rounded-2xl bg-black/20 p-2"></div>
+    <h2 class="sidebar-expand-only mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Agent/System Log</h2>
+    <div id="logList" class="log-surface sidebar-expand-only no-scrollbar flex-1 space-y-2 overflow-auto rounded-2xl bg-black/20 p-2"></div>
   `;
     const personaBox = element.querySelector("#personaBox");
     const modeSelect = element.querySelector("#modeSelect");
@@ -74,6 +81,8 @@ export function createSidebar(options) {
     const logList = element.querySelector("#logList");
     const themeToggle = element.querySelector("#themeToggle");
     const themeIcon = element.querySelector("#themeIcon");
+    const collapseToggle = element.querySelector("#collapseToggle");
+    const collapseIcon = element.querySelector("#collapseIcon");
     if (!personaBox ||
         !modeSelect ||
         !plannerToggle ||
@@ -82,9 +91,12 @@ export function createSidebar(options) {
         !activeAgent ||
         !logList ||
         !themeToggle ||
-        !themeIcon) {
+        !themeIcon ||
+        !collapseToggle ||
+        !collapseIcon) {
         throw new Error("Sidebar gagal diinisialisasi: element tidak lengkap.");
     }
+    let collapsed = false;
     modeSelect.addEventListener("change", () => {
         const value = modeSelect.value;
         options.onModeChange(value);
@@ -97,6 +109,14 @@ export function createSidebar(options) {
     });
     themeToggle.addEventListener("click", () => {
         options.onThemeToggle();
+    });
+    collapseToggle.addEventListener("click", () => {
+        collapsed = !collapsed;
+        element.classList.toggle("sidebar-collapsed", collapsed);
+        collapseIcon.src = collapsed
+            ? "/assets/icons/Arrows/contract-right-line.svg"
+            : "/assets/icons/Arrows/contract-left-line.svg";
+        options.onCollapseToggle(collapsed);
     });
     return {
         element,
@@ -128,6 +148,13 @@ export function createSidebar(options) {
                     ? "ri-moon-line text-lg text-cyan-200"
                     : "ri-sun-line text-lg text-amber-500";
             themeToggle.setAttribute("aria-label", theme === "dark" ? "Dark mode active" : "Light mode active");
+        },
+        setCollapsed(nextCollapsed) {
+            collapsed = nextCollapsed;
+            element.classList.toggle("sidebar-collapsed", collapsed);
+            collapseIcon.src = collapsed
+                ? "/assets/icons/Arrows/contract-right-line.svg"
+                : "/assets/icons/Arrows/contract-left-line.svg";
         },
         addLog(entry) {
             const item = document.createElement("div");

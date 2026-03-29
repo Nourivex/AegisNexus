@@ -9,6 +9,7 @@ function requireElement(id) {
 }
 const sidebarRoot = requireElement("sidebar-root");
 const pageRoot = requireElement("page-root");
+const appRoot = requireElement("app");
 let sessionId = crypto.randomUUID();
 let activeTheme = "dark";
 let agentControl = {
@@ -30,6 +31,9 @@ const sidebar = createSidebar({
     },
     onThemeToggle() {
         applyTheme(activeTheme === "dark" ? "light" : "dark");
+    },
+    onCollapseToggle(collapsed) {
+        appRoot.classList.toggle("sidebar-collapsed-layout", collapsed);
     },
 });
 const dashboard = createDashboard({

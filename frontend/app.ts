@@ -11,6 +11,7 @@ function requireElement<T extends HTMLElement>(id: string): T {
 
 const sidebarRoot = requireElement<HTMLDivElement>("sidebar-root");
 const pageRoot = requireElement<HTMLDivElement>("page-root");
+const appRoot = requireElement<HTMLDivElement>("app");
 
 let sessionId = crypto.randomUUID();
 let activeTheme: "dark" | "light" = "dark";
@@ -34,6 +35,9 @@ const sidebar = createSidebar({
   },
   onThemeToggle() {
     applyTheme(activeTheme === "dark" ? "light" : "dark");
+  },
+  onCollapseToggle(collapsed) {
+    appRoot.classList.toggle("sidebar-collapsed-layout", collapsed);
   },
 });
 

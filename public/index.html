@@ -11,14 +11,9 @@
 </head>
 
 <body class="theme-dark bg-[#131314] text-gray-200 antialiased">
-    <div
-        class="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(80,120,255,0.18),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(0,220,200,0.12),transparent_35%)]">
-    </div>
-
-    <div id="app"
-        class="relative z-10 mx-auto grid min-h-screen max-w-[1520px] grid-cols-1 gap-4 p-4 lg:grid-cols-[360px_1fr] lg:p-6">
+    <div id="app" class="relative flex min-h-screen w-full overflow-hidden">
         <div id="sidebar-root"></div>
-        <div id="page-root"></div>
+        <div id="page-root" class="flex-1"></div>
     </div>
 
     <script type="module" src="/app.js"></script>

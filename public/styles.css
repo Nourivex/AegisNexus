@@ -2,12 +2,18 @@
     display: none;
 }
 
+#app {
+    height: 100vh;
+}
+
 .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
 
 body {
+    margin: 0;
+    background: #0a0f16;
     transition: background-color 0.22s ease, color 0.22s ease;
 }
 
@@ -15,8 +21,40 @@ body {
     transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
+.collapse-toggle-btn {
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
 .theme-toggle-btn:hover {
     transform: translateY(-1px);
+}
+
+.collapse-toggle-btn:hover {
+    transform: translateY(-1px);
+}
+
+.sidebar-panel {
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-panel.sidebar-collapsed {
+    width: 84px !important;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.sidebar-panel.sidebar-collapsed .sidebar-brand,
+.sidebar-panel.sidebar-collapsed .sidebar-expand-only {
+    display: none !important;
+}
+
+.sidebar-panel.sidebar-collapsed #themeToggle,
+.sidebar-panel.sidebar-collapsed #collapseToggle {
+    margin-top: 2px;
+}
+
+#page-root {
+    min-width: 0;
 }
 
 body.theme-light {
@@ -26,9 +64,9 @@ body.theme-light {
 
 body.theme-light .sidebar-panel,
 body.theme-light .main-panel {
-    background: rgba(255, 255, 255, 0.88) !important;
-    box-shadow: 0 0 30px rgba(15, 23, 42, 0.12) !important;
-    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+    background: #f8fafc !important;
+    box-shadow: none !important;
+    border: none !important;
 }
 
 body.theme-light .card-panel {
@@ -46,6 +84,10 @@ body.theme-light .log-surface {
 }
 
 body.theme-light .theme-toggle-btn {
+    background: rgba(15, 23, 42, 0.08) !important;
+}
+
+body.theme-light .collapse-toggle-btn {
     background: rgba(15, 23, 42, 0.08) !important;
 }
 

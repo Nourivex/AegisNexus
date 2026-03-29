@@ -36,7 +36,7 @@ function mustQuery<T extends Element>(container: ParentNode, selector: string): 
 export function createDashboard(options: DashboardOptions): DashboardController {
   const element = document.createElement("section");
   element.className =
-    "main-panel relative flex min-h-[calc(100vh-2rem)] flex-col rounded-3xl bg-white/5 p-4 shadow-[0_0_45px_rgba(0,0,0,0.35)] ring-1 ring-white/10 backdrop-blur-xl lg:min-h-[calc(100vh-3rem)] lg:p-6";
+    "main-panel relative flex h-screen w-full flex-col bg-[#0b1017] p-4 lg:p-6";
 
   element.innerHTML = `
     <div id="chatList" class="no-scrollbar mb-36 flex-1 space-y-4 overflow-auto pr-1"></div>
