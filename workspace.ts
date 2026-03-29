@@ -39,6 +39,9 @@ const DEFAULT_MODEL = "gpt-5-mini";
 const DEFAULT_GATEWAY_PORT = 18410;
 
 export function getDefaultWorkspaceRoot(): string {
+  if (process.platform === "win32") {
+    return "L:\\.aegisnexus";
+  }
   return path.join(os.homedir(), ".aegisnexus");
 }
 
@@ -103,16 +106,31 @@ export async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot
   paths: AegisWorkspacePaths;
   config: AegisWorkspaceConfig;
 }> {
-  const paths = resolveWorkspacePaths(workspaceRoot);
+  let paths = resolveWorkspacePaths(workspaceRoot);
 
-  await Promise.all([
-    fsp.mkdir(paths.workspaceRoot, { recursive: true }),
-    fsp.mkdir(paths.credentialsDir, { recursive: true }),
-    fsp.mkdir(paths.memoryDir, { recursive: true }),
-    fsp.mkdir(paths.skillsDir, { recursive: true }),
-    fsp.mkdir(paths.logsDir, { recursive: true }),
-    fsp.mkdir(paths.runtimeDir, { recursive: true }),
-  ]);
+  const createDirectories = async (target: AegisWorkspacePaths): Promise<void> => {
+    await Promise.all([
+      fsp.mkdir(target.workspaceRoot, { recursive: true }),
+      fsp.mkdir(target.credentialsDir, { recursive: true }),
+      fsp.mkdir(target.memoryDir, { recursive: true }),
+      fsp.mkdir(target.skillsDir, { recursive: true }),
+      fsp.mkdir(target.logsDir, { recursive: true }),
+      fsp.mkdir(target.runtimeDir, { recursive: true }),
+    ]);
+  };
+
+  try {
+    await createDirectories(paths);
+  } catch {
+    const requestedDefault = path.resolve(workspaceRoot) === path.resolve(getDefaultWorkspaceRoot());
+    if (!(process.platform === "win32" && requestedDefault)) {
+      throw new Error(`Gagal membuat workspace di ${workspaceRoot}`);
+    }
+
+    const fallbackRoot = path.join(os.homedir(), ".aegisnexus");
+    paths = resolveWorkspacePaths(fallbackRoot);
+    await createDirectories(paths);
+  }
 
   await setWorkspacePointer(paths.workspaceRoot);
 

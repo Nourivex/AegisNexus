@@ -56,7 +56,7 @@ Menu configure mencakup:
 
 ## Global Workspace
 
-- Workspace default: `~/.aegisnexus` (bisa diubah dari menu Configure -> Workspace).
+- Workspace default (Windows): `L:\\.aegisnexus` (bisa diubah dari menu Configure -> Workspace).
 - Konfigurasi utama: `<WORKSPACE_PATH>/aegisnexus.json`.
 - Token Copilot: `<WORKSPACE_PATH>/credentials/github-copilot.token.json`.
 - PID daemon gateway: `<WORKSPACE_PATH>/runtime/.aegis.pid`.

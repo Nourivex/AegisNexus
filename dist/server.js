@@ -88,6 +88,9 @@ var WORKSPACE_POINTER_FILE = path2.join(PROJECT_ROOT, ".aegisnexus.path");
 var DEFAULT_MODEL = "gpt-5-mini";
 var DEFAULT_GATEWAY_PORT = 18410;
 function getDefaultWorkspaceRoot() {
+  if (process.platform === "win32") {
+    return "L:\\.aegisnexus";
+  }
   return path2.join(os.homedir(), ".aegisnexus");
 }
 function getConfiguredWorkspaceRoot() {
@@ -142,15 +145,28 @@ async function setWorkspacePointer(workspaceRoot) {
 `, "utf8");
 }
 async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
-  const paths = resolveWorkspacePaths(workspaceRoot);
-  await Promise.all([
-    fsp.mkdir(paths.workspaceRoot, { recursive: true }),
-    fsp.mkdir(paths.credentialsDir, { recursive: true }),
-    fsp.mkdir(paths.memoryDir, { recursive: true }),
-    fsp.mkdir(paths.skillsDir, { recursive: true }),
-    fsp.mkdir(paths.logsDir, { recursive: true }),
-    fsp.mkdir(paths.runtimeDir, { recursive: true })
-  ]);
+  let paths = resolveWorkspacePaths(workspaceRoot);
+  const createDirectories = async (target) => {
+    await Promise.all([
+      fsp.mkdir(target.workspaceRoot, { recursive: true }),
+      fsp.mkdir(target.credentialsDir, { recursive: true }),
+      fsp.mkdir(target.memoryDir, { recursive: true }),
+      fsp.mkdir(target.skillsDir, { recursive: true }),
+      fsp.mkdir(target.logsDir, { recursive: true }),
+      fsp.mkdir(target.runtimeDir, { recursive: true })
+    ]);
+  };
+  try {
+    await createDirectories(paths);
+  } catch {
+    const requestedDefault = path2.resolve(workspaceRoot) === path2.resolve(getDefaultWorkspaceRoot());
+    if (!(process.platform === "win32" && requestedDefault)) {
+      throw new Error(`Gagal membuat workspace di ${workspaceRoot}`);
+    }
+    const fallbackRoot = path2.join(os.homedir(), ".aegisnexus");
+    paths = resolveWorkspacePaths(fallbackRoot);
+    await createDirectories(paths);
+  }
   await setWorkspacePointer(paths.workspaceRoot);
   if (!fs2.existsSync(paths.configFile)) {
     await writeWorkspaceConfig(paths, {

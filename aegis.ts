@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { Command } from "commander";
 import chalk from "chalk";
-import { checkbox, confirm, input, select } from "@inquirer/prompts";
+import { checkbox, input, select } from "@inquirer/prompts";
 import {
   ensureWorkspace,
   readWorkspaceConfig,
@@ -305,9 +305,10 @@ async function configureWorkspace(): Promise<void> {
   header("Configure Workspace");
 
   const current = await ensureWorkspace();
+  const currentRoot = current.paths.workspaceRoot;
   const workspacePath = await input({
     message: "Workspace path",
-    default: current.paths.workspaceRoot,
+    default: currentRoot,
   });
 
   const sessionKey = await input({
@@ -323,7 +324,53 @@ async function configureWorkspace(): Promise<void> {
   const parsedPort = Number.parseInt(gatewayPortRaw.trim(), 10);
   const gatewayPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 18410;
 
-  const resolved = path.resolve(workspacePath.trim() || current.paths.workspaceRoot);
+  const resolved = path.resolve(workspacePath.trim() || currentRoot);
+  const targetExists = fs.existsSync(resolved);
+
+  async function migrateWorkspaceData(sourceRoot: string, targetRoot: string): Promise<void> {
+    await fsp.mkdir(targetRoot, { recursive: true });
+    const candidates = [
+      { from: path.join(sourceRoot, "aegisnexus.json"), to: path.join(targetRoot, "aegisnexus.json") },
+      { from: path.join(sourceRoot, "credentials"), to: path.join(targetRoot, "credentials") },
+      { from: path.join(sourceRoot, "memory"), to: path.join(targetRoot, "memory") },
+      { from: path.join(sourceRoot, "skills"), to: path.join(targetRoot, "skills") },
+    ];
+
+    for (const item of candidates) {
+      if (!fs.existsSync(item.from)) {
+        continue;
+      }
+      await fsp.cp(item.from, item.to, { recursive: true, force: true });
+    }
+  }
+
+  if (resolved !== currentRoot) {
+    const strategy = await select({
+      message: "Strategi workspace tujuan",
+      choices: [
+        { name: "Use existing workspace as-is", value: "use-existing" },
+        { name: "Migrate current workspace data ke lokasi baru", value: "migrate" },
+        { name: "Create new clean workspace", value: "clean" },
+      ],
+      default: targetExists ? "use-existing" : "migrate",
+    });
+
+    if (strategy === "migrate") {
+      await ensureWorkspace(resolved);
+      await migrateWorkspaceData(currentRoot, resolved);
+      success(`Data workspace dipindahkan ke ${resolved}`);
+    }
+
+    if (strategy === "clean" && !targetExists) {
+      await ensureWorkspace(resolved);
+      warn(`Workspace baru dibuat di ${resolved}`);
+    }
+
+    if (strategy === "clean" && targetExists) {
+      warn(`Lokasi ${resolved} sudah ada. Workspace existing tetap dipakai tanpa migrasi.`);
+    }
+  }
+
   const next = await ensureWorkspace(resolved);
 
   await writeWorkspaceConfig(next.paths, {
@@ -435,15 +482,15 @@ async function healthCheck(): Promise<void> {
   console.log(checks.join("\n"));
 }
 
-async function printConfigureMenu(): Promise<string[]> {
-  return checkbox({
+async function pickConfigureSection(): Promise<string> {
+  return select({
     message: chalk.cyan("Select sections to configure:"),
     choices: [
-      { name: "○ Workspace (Set workspace + sessions)", value: "workspace" },
-      { name: "○ Model", value: "model" },
-      { name: "○ Skills", value: "skills" },
-      { name: "○ Health check", value: "health" },
-      { name: "○ Continue", value: "continue" },
+      { name: "Workspace (Set workspace + sessions)", value: "workspace" },
+      { name: "Model", value: "model" },
+      { name: "Skills", value: "skills" },
+      { name: "Health check", value: "health" },
+      { name: "Continue", value: "continue" },
     ],
   });
 }
@@ -451,35 +498,26 @@ async function printConfigureMenu(): Promise<string[]> {
 async function runConfigureFlow(): Promise<void> {
   header("Configure");
   while (true) {
-    const sections = await printConfigureMenu();
+    const section = await pickConfigureSection();
 
-    if (sections.includes("workspace")) {
+    if (section === "workspace") {
       await configureWorkspace();
     }
 
-    if (sections.includes("model")) {
+    if (section === "model") {
       await configureModel();
     }
 
-    if (sections.includes("skills")) {
+    if (section === "skills") {
       await configureSkills();
     }
 
-    if (sections.includes("health")) {
+    if (section === "health") {
       await healthCheck();
     }
 
-    if (sections.includes("continue")) {
+    if (section === "continue") {
       success("Configure selesai.");
-      return;
-    }
-
-    const again = await confirm({
-      message: "Lanjutkan konfigurasi section lain?",
-      default: true,
-    });
-
-    if (!again) {
       return;
     }
   }
@@ -643,13 +681,23 @@ function createProgram(): Command {
 }
 
 export async function runAegisCli(argv: string[]): Promise<void> {
+  await ensureWorkspace();
+  const program = createProgram();
+
   try {
-    await ensureWorkspace();
-    const program = createProgram();
     await program.parseAsync(argv);
-  } catch (error) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(chalk.red(`Error: ${message}`));
+    const isUserCancel =
+      (error instanceof Error && error.name === "ExitPromptError") ||
+      message.includes("force closed the prompt") ||
+      message.includes("SIGINT");
+
+    if (isUserCancel) {
+      warn("Configure dibatalkan user.");
+      return;
+    }
+
     throw error;
   }
 }

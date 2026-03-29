@@ -7,7 +7,7 @@ import path2 from "path";
 import { spawn, spawnSync } from "child_process";
 import { Command } from "commander";
 import chalk from "chalk";
-import { checkbox, confirm, input, select } from "@inquirer/prompts";
+import { checkbox, input, select } from "@inquirer/prompts";
 
 // workspace.ts
 import fs from "fs";
@@ -22,6 +22,9 @@ var WORKSPACE_POINTER_FILE = path.join(PROJECT_ROOT, ".aegisnexus.path");
 var DEFAULT_MODEL = "gpt-5-mini";
 var DEFAULT_GATEWAY_PORT = 18410;
 function getDefaultWorkspaceRoot() {
+  if (process.platform === "win32") {
+    return "L:\\.aegisnexus";
+  }
   return path.join(os.homedir(), ".aegisnexus");
 }
 function getConfiguredWorkspaceRoot() {
@@ -76,15 +79,28 @@ async function setWorkspacePointer(workspaceRoot) {
 `, "utf8");
 }
 async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
-  const paths = resolveWorkspacePaths(workspaceRoot);
-  await Promise.all([
-    fsp.mkdir(paths.workspaceRoot, { recursive: true }),
-    fsp.mkdir(paths.credentialsDir, { recursive: true }),
-    fsp.mkdir(paths.memoryDir, { recursive: true }),
-    fsp.mkdir(paths.skillsDir, { recursive: true }),
-    fsp.mkdir(paths.logsDir, { recursive: true }),
-    fsp.mkdir(paths.runtimeDir, { recursive: true })
-  ]);
+  let paths = resolveWorkspacePaths(workspaceRoot);
+  const createDirectories = async (target) => {
+    await Promise.all([
+      fsp.mkdir(target.workspaceRoot, { recursive: true }),
+      fsp.mkdir(target.credentialsDir, { recursive: true }),
+      fsp.mkdir(target.memoryDir, { recursive: true }),
+      fsp.mkdir(target.skillsDir, { recursive: true }),
+      fsp.mkdir(target.logsDir, { recursive: true }),
+      fsp.mkdir(target.runtimeDir, { recursive: true })
+    ]);
+  };
+  try {
+    await createDirectories(paths);
+  } catch {
+    const requestedDefault = path.resolve(workspaceRoot) === path.resolve(getDefaultWorkspaceRoot());
+    if (!(process.platform === "win32" && requestedDefault)) {
+      throw new Error(`Gagal membuat workspace di ${workspaceRoot}`);
+    }
+    const fallbackRoot = path.join(os.homedir(), ".aegisnexus");
+    paths = resolveWorkspacePaths(fallbackRoot);
+    await createDirectories(paths);
+  }
   await setWorkspacePointer(paths.workspaceRoot);
   if (!fs.existsSync(paths.configFile)) {
     await writeWorkspaceConfig(paths, {
@@ -324,9 +340,10 @@ async function fetchModels(token) {
 async function configureWorkspace() {
   header("Configure Workspace");
   const current = await ensureWorkspace();
+  const currentRoot = current.paths.workspaceRoot;
   const workspacePath = await input({
     message: "Workspace path",
-    default: current.paths.workspaceRoot
+    default: currentRoot
   });
   const sessionKey = await input({
     message: "Session key",
@@ -338,7 +355,46 @@ async function configureWorkspace() {
   });
   const parsedPort = Number.parseInt(gatewayPortRaw.trim(), 10);
   const gatewayPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 18410;
-  const resolved = path2.resolve(workspacePath.trim() || current.paths.workspaceRoot);
+  const resolved = path2.resolve(workspacePath.trim() || currentRoot);
+  const targetExists = fs2.existsSync(resolved);
+  async function migrateWorkspaceData(sourceRoot, targetRoot) {
+    await fsp2.mkdir(targetRoot, { recursive: true });
+    const candidates = [
+      { from: path2.join(sourceRoot, "aegisnexus.json"), to: path2.join(targetRoot, "aegisnexus.json") },
+      { from: path2.join(sourceRoot, "credentials"), to: path2.join(targetRoot, "credentials") },
+      { from: path2.join(sourceRoot, "memory"), to: path2.join(targetRoot, "memory") },
+      { from: path2.join(sourceRoot, "skills"), to: path2.join(targetRoot, "skills") }
+    ];
+    for (const item of candidates) {
+      if (!fs2.existsSync(item.from)) {
+        continue;
+      }
+      await fsp2.cp(item.from, item.to, { recursive: true, force: true });
+    }
+  }
+  if (resolved !== currentRoot) {
+    const strategy = await select({
+      message: "Strategi workspace tujuan",
+      choices: [
+        { name: "Use existing workspace as-is", value: "use-existing" },
+        { name: "Migrate current workspace data ke lokasi baru", value: "migrate" },
+        { name: "Create new clean workspace", value: "clean" }
+      ],
+      default: targetExists ? "use-existing" : "migrate"
+    });
+    if (strategy === "migrate") {
+      await ensureWorkspace(resolved);
+      await migrateWorkspaceData(currentRoot, resolved);
+      success(`Data workspace dipindahkan ke ${resolved}`);
+    }
+    if (strategy === "clean" && !targetExists) {
+      await ensureWorkspace(resolved);
+      warn(`Workspace baru dibuat di ${resolved}`);
+    }
+    if (strategy === "clean" && targetExists) {
+      warn(`Lokasi ${resolved} sudah ada. Workspace existing tetap dipakai tanpa migrasi.`);
+    }
+  }
   const next = await ensureWorkspace(resolved);
   await writeWorkspaceConfig(next.paths, {
     ...next.config,
@@ -433,43 +489,36 @@ async function healthCheck() {
   }
   console.log(checks.join("\n"));
 }
-async function printConfigureMenu() {
-  return checkbox({
+async function pickConfigureSection() {
+  return select({
     message: chalk.cyan("Select sections to configure:"),
     choices: [
-      { name: "\u25CB Workspace (Set workspace + sessions)", value: "workspace" },
-      { name: "\u25CB Model", value: "model" },
-      { name: "\u25CB Skills", value: "skills" },
-      { name: "\u25CB Health check", value: "health" },
-      { name: "\u25CB Continue", value: "continue" }
+      { name: "Workspace (Set workspace + sessions)", value: "workspace" },
+      { name: "Model", value: "model" },
+      { name: "Skills", value: "skills" },
+      { name: "Health check", value: "health" },
+      { name: "Continue", value: "continue" }
     ]
   });
 }
 async function runConfigureFlow() {
   header("Configure");
   while (true) {
-    const sections = await printConfigureMenu();
-    if (sections.includes("workspace")) {
+    const section = await pickConfigureSection();
+    if (section === "workspace") {
       await configureWorkspace();
     }
-    if (sections.includes("model")) {
+    if (section === "model") {
       await configureModel();
     }
-    if (sections.includes("skills")) {
+    if (section === "skills") {
       await configureSkills();
     }
-    if (sections.includes("health")) {
+    if (section === "health") {
       await healthCheck();
     }
-    if (sections.includes("continue")) {
+    if (section === "continue") {
       success("Configure selesai.");
-      return;
-    }
-    const again = await confirm({
-      message: "Lanjutkan konfigurasi section lain?",
-      default: true
-    });
-    if (!again) {
       return;
     }
   }
@@ -598,13 +647,17 @@ function createProgram() {
   return program;
 }
 async function runAegisCli(argv) {
+  await ensureWorkspace();
+  const program = createProgram();
   try {
-    await ensureWorkspace();
-    const program = createProgram();
     await program.parseAsync(argv);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(chalk.red(`Error: ${message}`));
+    const isUserCancel = error instanceof Error && error.name === "ExitPromptError" || message.includes("force closed the prompt") || message.includes("SIGINT");
+    if (isUserCancel) {
+      warn("Configure dibatalkan user.");
+      return;
+    }
     throw error;
   }
 }
