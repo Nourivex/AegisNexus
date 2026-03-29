@@ -11,7 +11,7 @@ npm run build
 node dist/index.js aegis gateway start
 ```
 
-Buka: `http://127.0.0.1:3030`
+Buka: `http://127.0.0.1:18410`
 
 ## CLI V2.0
 

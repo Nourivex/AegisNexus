@@ -315,6 +315,14 @@ async function configureWorkspace(): Promise<void> {
     default: current.config.sessionKey,
   });
 
+  const gatewayPortRaw = await input({
+    message: "Gateway port",
+    default: String(current.config.gatewayPort || 18410),
+  });
+
+  const parsedPort = Number.parseInt(gatewayPortRaw.trim(), 10);
+  const gatewayPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 18410;
+
   const resolved = path.resolve(workspacePath.trim() || current.paths.workspaceRoot);
   const next = await ensureWorkspace(resolved);
 
@@ -322,6 +330,7 @@ async function configureWorkspace(): Promise<void> {
     ...next.config,
     workspacePath: resolved,
     sessionKey: sessionKey.trim() || "main",
+    gatewayPort,
   });
 
   await setWorkspacePointer(resolved);
@@ -400,6 +409,7 @@ async function healthCheck(): Promise<void> {
   checks.push(`${chalk.cyan("Workspace")}: ${ws.paths.workspaceRoot}`);
   checks.push(`${chalk.cyan("Config")}: ${fs.existsSync(ws.paths.configFile) ? chalk.green("OK") : chalk.red("MISSING")}`);
   checks.push(`${chalk.cyan("Token")}: ${fs.existsSync(ws.paths.tokenFile) ? chalk.green("OK") : chalk.yellow("MISSING")}`);
+  checks.push(`${chalk.cyan("Port")}: ${chalk.green(String(ws.config.gatewayPort || 18410))}`);
   checks.push(`${chalk.cyan("Model")}: ${chalk.green(ws.config.selectedModel)}`);
 
   if (fs.existsSync(ws.paths.pidFile)) {
@@ -426,21 +436,14 @@ async function healthCheck(): Promise<void> {
 }
 
 async function printConfigureMenu(): Promise<string[]> {
-  console.log(chalk.cyan("? Select sections to configure:"));
-  console.log("❯ ○ Workspace (Set workspace + sessions)");
-  console.log("  ○ Model");
-  console.log("  ○ Skills");
-  console.log("  ○ Health check");
-  console.log("  ○ Continue\n");
-
   return checkbox({
-    message: "Select sections to configure:",
+    message: chalk.cyan("Select sections to configure:"),
     choices: [
-      { name: "Workspace (Set workspace + sessions)", value: "workspace" },
-      { name: "Model", value: "model" },
-      { name: "Skills", value: "skills" },
-      { name: "Health check", value: "health" },
-      { name: "Continue", value: "continue" },
+      { name: "○ Workspace (Set workspace + sessions)", value: "workspace" },
+      { name: "○ Model", value: "model" },
+      { name: "○ Skills", value: "skills" },
+      { name: "○ Health check", value: "health" },
+      { name: "○ Continue", value: "continue" },
     ],
   });
 }
@@ -524,6 +527,7 @@ async function gatewayStart(): Promise<void> {
   header("Gateway Start");
 
   const ws = await ensureWorkspace();
+  const gatewayPort = Number(ws.config.gatewayPort || 18410);
   if (fs.existsSync(ws.paths.pidFile)) {
     const existing = Number.parseInt((await fsp.readFile(ws.paths.pidFile, "utf8")).trim(), 10);
     if (isPidRunning(existing)) {
@@ -546,6 +550,7 @@ async function gatewayStart(): Promise<void> {
     env: {
       ...process.env,
       AEGISNEXUS_WORKSPACE: ws.paths.workspaceRoot,
+      AEGIS_NEXUS_PORT: String(gatewayPort),
     },
   });
 
@@ -554,7 +559,7 @@ async function gatewayStart(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 800));
   if (!isPidRunning(child.pid ?? 0)) {
     throw new Error(
-      "Gateway gagal stay alive setelah start. Cek port 3030 bentrok atau jalankan health check untuk detail.",
+      `Gateway gagal stay alive setelah start. Cek port ${gatewayPort} bentrok atau jalankan health check untuk detail.`,
     );
   }
 

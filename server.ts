@@ -59,7 +59,7 @@ const PERSONA_MD_PATH = path.join(PROJECT_ROOT, "personas", "the_queen.md");
 const WORKSPACE_PATHS = resolveWorkspacePaths();
 const TOKEN_PATH = WORKSPACE_PATHS.tokenFile;
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
-const PORT = Number(process.env.AEGIS_NEXUS_PORT || 3030);
+const PORT = Number(process.env.AEGIS_NEXUS_PORT || 18410);
 const REFRESH_THRESHOLD_MS = 30 * 60 * 1000;
 const REFRESH_POLL_MS = 5 * 60 * 1000;
 

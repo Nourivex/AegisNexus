@@ -86,6 +86,7 @@ var CURRENT_DIR = path2.dirname(__filename);
 var PROJECT_ROOT = path2.basename(CURRENT_DIR) === "dist" ? path2.dirname(CURRENT_DIR) : CURRENT_DIR;
 var WORKSPACE_POINTER_FILE = path2.join(PROJECT_ROOT, ".aegisnexus.path");
 var DEFAULT_MODEL = "gpt-5-mini";
+var DEFAULT_GATEWAY_PORT = 18410;
 function getDefaultWorkspaceRoot() {
   return path2.join(os.homedir(), ".aegisnexus");
 }
@@ -122,6 +123,7 @@ async function readWorkspaceConfig(paths) {
   return {
     workspacePath: String(parsed.workspacePath || paths.workspaceRoot),
     sessionKey: String(parsed.sessionKey || "main"),
+    gatewayPort: Number(parsed.gatewayPort || DEFAULT_GATEWAY_PORT),
     selectedModel: String(parsed.selectedModel || DEFAULT_MODEL),
     skills: {
       planner: Boolean(parsed.skills?.planner ?? true),
@@ -154,6 +156,7 @@ async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
     await writeWorkspaceConfig(paths, {
       workspacePath: paths.workspaceRoot,
       sessionKey: "main",
+      gatewayPort: DEFAULT_GATEWAY_PORT,
       selectedModel: DEFAULT_MODEL,
       skills: {
         planner: true,
@@ -176,7 +179,7 @@ var PERSONA_MD_PATH = path3.join(PROJECT_ROOT2, "personas", "the_queen.md");
 var WORKSPACE_PATHS = resolveWorkspacePaths();
 var TOKEN_PATH = WORKSPACE_PATHS.tokenFile;
 var COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
-var PORT = Number(process2.env.AEGIS_NEXUS_PORT || 3030);
+var PORT = Number(process2.env.AEGIS_NEXUS_PORT || 18410);
 var REFRESH_THRESHOLD_MS = 30 * 60 * 1e3;
 var REFRESH_POLL_MS = 5 * 60 * 1e3;
 var eventClients = /* @__PURE__ */ new Set();

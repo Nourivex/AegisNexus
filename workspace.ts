@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 export type AegisWorkspaceConfig = {
   workspacePath: string;
   sessionKey: string;
+  gatewayPort: number;
   selectedModel: string;
   skills: {
     planner: boolean;
@@ -35,6 +36,7 @@ const PROJECT_ROOT = path.basename(CURRENT_DIR) === "dist" ? path.dirname(CURREN
 const WORKSPACE_POINTER_FILE = path.join(PROJECT_ROOT, ".aegisnexus.path");
 
 const DEFAULT_MODEL = "gpt-5-mini";
+const DEFAULT_GATEWAY_PORT = 18410;
 
 export function getDefaultWorkspaceRoot(): string {
   return path.join(os.homedir(), ".aegisnexus");
@@ -78,6 +80,7 @@ export async function readWorkspaceConfig(paths: AegisWorkspacePaths): Promise<A
   return {
     workspacePath: String(parsed.workspacePath || paths.workspaceRoot),
     sessionKey: String(parsed.sessionKey || "main"),
+    gatewayPort: Number(parsed.gatewayPort || DEFAULT_GATEWAY_PORT),
     selectedModel: String(parsed.selectedModel || DEFAULT_MODEL),
     skills: {
       planner: Boolean(parsed.skills?.planner ?? true),
@@ -117,6 +120,7 @@ export async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot
     await writeWorkspaceConfig(paths, {
       workspacePath: paths.workspaceRoot,
       sessionKey: "main",
+      gatewayPort: DEFAULT_GATEWAY_PORT,
       selectedModel: DEFAULT_MODEL,
       skills: {
         planner: true,

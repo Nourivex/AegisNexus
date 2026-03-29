@@ -24,6 +24,7 @@ var CURRENT_DIR = path.dirname(__filename);
 var PROJECT_ROOT = path.basename(CURRENT_DIR) === "dist" ? path.dirname(CURRENT_DIR) : CURRENT_DIR;
 var WORKSPACE_POINTER_FILE = path.join(PROJECT_ROOT, ".aegisnexus.path");
 var DEFAULT_MODEL = "gpt-5-mini";
+var DEFAULT_GATEWAY_PORT = 18410;
 function getDefaultWorkspaceRoot() {
   return path.join(os.homedir(), ".aegisnexus");
 }
@@ -60,6 +61,7 @@ async function readWorkspaceConfig(paths) {
   return {
     workspacePath: String(parsed.workspacePath || paths.workspaceRoot),
     sessionKey: String(parsed.sessionKey || "main"),
+    gatewayPort: Number(parsed.gatewayPort || DEFAULT_GATEWAY_PORT),
     selectedModel: String(parsed.selectedModel || DEFAULT_MODEL),
     skills: {
       planner: Boolean(parsed.skills?.planner ?? true),
@@ -92,6 +94,7 @@ async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
     await writeWorkspaceConfig(paths, {
       workspacePath: paths.workspaceRoot,
       sessionKey: "main",
+      gatewayPort: DEFAULT_GATEWAY_PORT,
       selectedModel: DEFAULT_MODEL,
       skills: {
         planner: true,
@@ -333,12 +336,19 @@ async function configureWorkspace() {
     message: "Session key",
     default: current.config.sessionKey
   });
+  const gatewayPortRaw = await input({
+    message: "Gateway port",
+    default: String(current.config.gatewayPort || 18410)
+  });
+  const parsedPort = Number.parseInt(gatewayPortRaw.trim(), 10);
+  const gatewayPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 18410;
   const resolved = path2.resolve(workspacePath.trim() || current.paths.workspaceRoot);
   const next = await ensureWorkspace(resolved);
   await writeWorkspaceConfig(next.paths, {
     ...next.config,
     workspacePath: resolved,
-    sessionKey: sessionKey.trim() || "main"
+    sessionKey: sessionKey.trim() || "main",
+    gatewayPort
   });
   await setWorkspacePointer(resolved);
   success(`Workspace diset ke ${resolved}`);
@@ -404,6 +414,7 @@ async function healthCheck() {
   checks.push(`${chalk.cyan("Workspace")}: ${ws.paths.workspaceRoot}`);
   checks.push(`${chalk.cyan("Config")}: ${fs2.existsSync(ws.paths.configFile) ? chalk.green("OK") : chalk.red("MISSING")}`);
   checks.push(`${chalk.cyan("Token")}: ${fs2.existsSync(ws.paths.tokenFile) ? chalk.green("OK") : chalk.yellow("MISSING")}`);
+  checks.push(`${chalk.cyan("Port")}: ${chalk.green(String(ws.config.gatewayPort || 18410))}`);
   checks.push(`${chalk.cyan("Model")}: ${chalk.green(ws.config.selectedModel)}`);
   if (fs2.existsSync(ws.paths.pidFile)) {
     try {
@@ -427,20 +438,14 @@ async function healthCheck() {
   console.log(checks.join("\n"));
 }
 async function printConfigureMenu() {
-  console.log(chalk.cyan("? Select sections to configure:"));
-  console.log("\u276F \u25CB Workspace (Set workspace + sessions)");
-  console.log("  \u25CB Model");
-  console.log("  \u25CB Skills");
-  console.log("  \u25CB Health check");
-  console.log("  \u25CB Continue\n");
   return checkbox({
-    message: "Select sections to configure:",
+    message: chalk.cyan("Select sections to configure:"),
     choices: [
-      { name: "Workspace (Set workspace + sessions)", value: "workspace" },
-      { name: "Model", value: "model" },
-      { name: "Skills", value: "skills" },
-      { name: "Health check", value: "health" },
-      { name: "Continue", value: "continue" }
+      { name: "\u25CB Workspace (Set workspace + sessions)", value: "workspace" },
+      { name: "\u25CB Model", value: "model" },
+      { name: "\u25CB Skills", value: "skills" },
+      { name: "\u25CB Health check", value: "health" },
+      { name: "\u25CB Continue", value: "continue" }
     ]
   });
 }
@@ -507,6 +512,7 @@ function isPidRunning(pid) {
 async function gatewayStart() {
   header("Gateway Start");
   const ws = await ensureWorkspace();
+  const gatewayPort = Number(ws.config.gatewayPort || 18410);
   if (fs2.existsSync(ws.paths.pidFile)) {
     const existing = Number.parseInt((await fsp2.readFile(ws.paths.pidFile, "utf8")).trim(), 10);
     if (isPidRunning(existing)) {
@@ -525,14 +531,15 @@ async function gatewayStart() {
     stdio: "ignore",
     env: {
       ...process2.env,
-      AEGISNEXUS_WORKSPACE: ws.paths.workspaceRoot
+      AEGISNEXUS_WORKSPACE: ws.paths.workspaceRoot,
+      AEGIS_NEXUS_PORT: String(gatewayPort)
     }
   });
   child.unref();
   await new Promise((resolve) => setTimeout(resolve, 800));
   if (!isPidRunning(child.pid ?? 0)) {
     throw new Error(
-      "Gateway gagal stay alive setelah start. Cek port 3030 bentrok atau jalankan health check untuk detail."
+      `Gateway gagal stay alive setelah start. Cek port ${gatewayPort} bentrok atau jalankan health check untuk detail.`
     );
   }
   await fsp2.writeFile(ws.paths.pidFile, `${child.pid}
