@@ -13,6 +13,6 @@
         "rootDir": "frontend"
     },
     "include": [
-        "frontend/app.ts"
+        "frontend/**/*.ts"
     ]
 }

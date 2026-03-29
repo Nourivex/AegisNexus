@@ -1,4 +1,5 @@
-"use strict";
+import { createSidebar } from "./components/sidebar.js";
+import { createDashboard } from "./pages/dashboard.js";
 function requireElement(id) {
     const element = document.getElementById(id);
     if (!element) {
@@ -6,49 +7,54 @@ function requireElement(id) {
     }
     return element;
 }
-const chatList = requireElement("chatList");
-const logList = requireElement("logList");
-const personaBox = requireElement("personaBox");
-const promptInput = requireElement("promptInput");
-const sendBtn = requireElement("sendBtn");
-const continueBtn = requireElement("continueBtn");
-const modeSelect = requireElement("modeSelect");
-const plannerToggle = requireElement("plannerToggle");
-const workerToggle = requireElement("workerToggle");
-const activeMode = requireElement("activeMode");
-const activeAgent = requireElement("activeAgent");
-const themeToggle = requireElement("themeToggle");
-const themeIcon = requireElement("themeIcon");
+const sidebarRoot = requireElement("sidebar-root");
+const pageRoot = requireElement("page-root");
 let sessionId = crypto.randomUUID();
-let lastUserPrompt = "";
-let waiting = false;
-let needsApproval = false;
 let activeTheme = "dark";
 let agentControl = {
     mode: "full",
     enablePlanner: true,
     enableWorker: true,
 };
-function updateModeIndicator() {
-    activeMode.textContent = `Mode: ${agentControl.mode}`;
-}
-function updateControlAvailability() {
-    const custom = agentControl.mode === "custom";
-    plannerToggle.disabled = !custom;
-    workerToggle.disabled = !custom;
-}
-function updateActiveAgentIndicator(agentName) {
-    activeAgent.textContent = `Agent: ${agentName}`;
-}
+const sidebar = createSidebar({
+    onModeChange(mode) {
+        agentControl.mode = mode;
+        sidebar.setActiveMode(mode);
+        sidebar.setControlAvailability(mode === "custom");
+    },
+    onPlannerToggle(enabled) {
+        agentControl.enablePlanner = enabled;
+    },
+    onWorkerToggle(enabled) {
+        agentControl.enableWorker = enabled;
+    },
+    onThemeToggle() {
+        applyTheme(activeTheme === "dark" ? "light" : "dark");
+    },
+});
+const dashboard = createDashboard({
+    getAgentControl() {
+        return agentControl;
+    },
+    getSessionId() {
+        return sessionId;
+    },
+    onExecutionUpdate(execution) {
+        if (!execution) {
+            return;
+        }
+        const active = execution.activeAgents.length ? execution.activeAgents.join(", ") : "queen";
+        sidebar.setActiveMode(execution.mode);
+        sidebar.setActiveAgent(active);
+    },
+});
+sidebarRoot.appendChild(sidebar.element);
+pageRoot.appendChild(dashboard.element);
 function applyTheme(theme) {
     activeTheme = theme;
     document.body.classList.remove("theme-dark", "theme-light");
     document.body.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
-    themeIcon.className =
-        theme === "dark"
-            ? "ri-moon-line text-lg text-cyan-200"
-            : "ri-sun-line text-lg text-amber-500";
-    themeToggle.setAttribute("aria-label", theme === "dark" ? "Dark mode active" : "Light mode active");
+    sidebar.setTheme(theme);
     localStorage.setItem("aegisnexus-theme", theme);
 }
 function bootstrapTheme() {
@@ -59,177 +65,41 @@ function bootstrapTheme() {
     }
     applyTheme("dark");
 }
-function addChat(role, text) {
-    const row = document.createElement("div");
-    row.className = role === "user" ? "flex justify-end" : "flex justify-start";
-    const container = document.createElement("div");
-    container.className =
-        role === "user"
-            ? "flex max-w-[88%] items-start gap-3"
-            : "flex max-w-[88%] items-start gap-3";
-    const avatar = document.createElement("div");
-    avatar.className =
-        role === "user"
-            ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-400/25 text-xs font-bold text-cyan-100"
-            : role === "assistant"
-                ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-400/25 text-xs font-bold text-indigo-100"
-                : "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-xs font-bold text-amber-100";
-    avatar.textContent = role === "user" ? "U" : role === "assistant" ? "Q" : "!";
-    const bubble = document.createElement("div");
-    bubble.className =
-        role === "user"
-            ? "chat-bubble-user rounded-2xl rounded-tr-sm bg-cyan-400/15 px-4 py-3 text-sm leading-relaxed text-cyan-50"
-            : role === "assistant"
-                ? "chat-bubble-assistant rounded-2xl rounded-tl-sm bg-white/5 px-4 py-3 text-sm leading-relaxed text-gray-100"
-                : "chat-bubble-meta rounded-2xl bg-amber-400/10 px-4 py-3 text-sm leading-relaxed text-amber-100";
-    bubble.textContent = text;
-    if (role === "user") {
-        container.appendChild(bubble);
-        container.appendChild(avatar);
-    }
-    else {
-        container.appendChild(avatar);
-        container.appendChild(bubble);
-    }
-    row.appendChild(container);
-    chatList.appendChild(row);
-    chatList.scrollTop = chatList.scrollHeight;
-}
-function addLog(entry) {
-    const item = document.createElement("div");
-    const level = String(entry.level || "info");
-    const colorClass = level === "error"
-        ? "text-rose-200"
-        : level === "warn"
-            ? "text-amber-200"
-            : "text-gray-300";
-    item.className = `log-item rounded-xl bg-white/5 px-3 py-2 text-xs leading-relaxed ${colorClass}`;
-    item.textContent = `[${entry.at || new Date().toISOString()}] ${entry.scope || "system"} - ${entry.message || ""}`;
-    logList.prepend(item);
-}
 async function loadConfig() {
     const res = await fetch("/api/config");
     const cfg = (await res.json());
-    personaBox.textContent = `${cfg.persona.name} | max loop: ${cfg.persona.maxAutoIterations} | models: ${cfg.preferredModels.join(", ")}`;
+    sidebar.setPersona(`${cfg.persona.name} | max loop: ${cfg.persona.maxAutoIterations} | models: ${cfg.preferredModels.join(", ")}`);
     if (cfg.defaultAgentControl) {
         agentControl = cfg.defaultAgentControl;
+        sidebar.setMode(agentControl.mode);
+        sidebar.setPlannerEnabled(agentControl.enablePlanner);
+        sidebar.setWorkerEnabled(agentControl.enableWorker);
     }
-    modeSelect.value = agentControl.mode;
-    plannerToggle.checked = agentControl.enablePlanner;
-    workerToggle.checked = agentControl.enableWorker;
-    updateModeIndicator();
-    updateControlAvailability();
+    sidebar.setActiveMode(agentControl.mode);
+    sidebar.setControlAvailability(agentControl.mode === "custom");
 }
-function setBusy(state) {
-    waiting = state;
-    sendBtn.disabled = state;
-    continueBtn.disabled = state || !needsApproval;
-}
-async function callChat(params) {
-    const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            message: params.message,
-            continueApproved: params.continueApproved,
-            sessionId,
-            agentControl,
-        }),
-    });
-    const data = (await res.json());
-    if (!res.ok) {
-        throw new Error(data.error || "Unknown error");
-    }
-    return {
-        answer: String(data.answer || ""),
-        model: String(data.model || "unknown"),
-        iteration: Number(data.iteration || 0),
-        needsApproval: Boolean(data.needsApproval),
-        execution: data.execution,
-    };
-}
-async function runChat(continueApproved = false) {
-    const prompt = continueApproved ? lastUserPrompt : promptInput.value.trim();
-    if (!prompt) {
-        return;
-    }
-    if (!continueApproved) {
-        lastUserPrompt = prompt;
-        addChat("user", prompt);
-        promptInput.value = "";
-    }
-    else {
-        addChat("meta", "Approval diberikan. The Queen melanjutkan iterasi.");
-    }
-    setBusy(true);
-    try {
-        const result = await callChat({ message: prompt, continueApproved });
-        addChat("assistant", `${result.answer}\n\n(model: ${result.model}, iterasi: ${result.iteration})`);
-        needsApproval = result.needsApproval;
-        continueBtn.disabled = !needsApproval;
-        if (result.execution) {
-            activeMode.textContent = `Mode: ${result.execution.mode}`;
-            const active = result.execution.activeAgents.length
-                ? result.execution.activeAgents.join(", ")
-                : "queen";
-            updateActiveAgentIndicator(active);
-        }
-    }
-    catch (error) {
-        addChat("meta", `Error: ${error instanceof Error ? error.message : String(error)}`);
-        updateActiveAgentIndicator("error");
-    }
-    finally {
-        setBusy(false);
-    }
-}
-sendBtn.addEventListener("click", () => {
-    void runChat(false);
-});
-continueBtn.addEventListener("click", () => {
-    void runChat(true);
-});
-promptInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !waiting) {
-        void runChat(false);
-    }
-});
-modeSelect.addEventListener("change", () => {
-    const nextMode = modeSelect.value;
-    agentControl.mode = nextMode;
-    updateModeIndicator();
-    updateControlAvailability();
-});
-plannerToggle.addEventListener("change", () => {
-    agentControl.enablePlanner = plannerToggle.checked;
-});
-workerToggle.addEventListener("change", () => {
-    agentControl.enableWorker = workerToggle.checked;
-});
-themeToggle.addEventListener("click", () => {
-    applyTheme(activeTheme === "dark" ? "light" : "dark");
-});
 const events = new EventSource("/api/events");
 events.onmessage = (event) => {
     try {
         const payload = JSON.parse(event.data);
-        addLog(payload);
+        sidebar.addLog(payload);
         const scope = String(payload.scope || "").toLowerCase();
         if (scope === "queen" || scope === "planner" || scope === "worker") {
-            updateActiveAgentIndicator(scope);
+            sidebar.setActiveAgent(scope);
         }
     }
     catch {
-        addLog({ level: "warn", scope: "events", message: event.data });
+        sidebar.addLog({ level: "warn", scope: "events", message: event.data });
     }
 };
 events.onerror = () => {
-    addLog({ level: "warn", scope: "events", message: "Log stream disconnected" });
+    sidebar.addLog({ level: "warn", scope: "events", message: "Log stream disconnected" });
 };
 void loadConfig().catch((error) => {
-    addChat("meta", `Gagal load config: ${error instanceof Error ? error.message : String(error)}`);
+    dashboard.showError(`Gagal load config: ${error instanceof Error ? error.message : String(error)}`);
 });
 bootstrapTheme();
-updateModeIndicator();
-updateControlAvailability();
-updateActiveAgentIndicator("idle");
+sidebar.setActiveMode(agentControl.mode);
+sidebar.setControlAvailability(agentControl.mode === "custom");
+sidebar.setActiveAgent("idle");
+sessionId = crypto.randomUUID();

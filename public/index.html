@@ -15,103 +15,11 @@
         class="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(80,120,255,0.18),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(0,220,200,0.12),transparent_35%)]">
     </div>
 
-    <main
+    <div id="app"
         class="relative z-10 mx-auto grid min-h-screen max-w-[1520px] grid-cols-1 gap-4 p-4 lg:grid-cols-[360px_1fr] lg:p-6">
-        <div
-            class="sidebar-panel flex max-h-[calc(100vh-2rem)] flex-col rounded-3xl bg-white/5 p-4 shadow-[0_0_45px_rgba(0,0,0,0.35)] ring-1 ring-white/10 backdrop-blur-xl lg:max-h-[calc(100vh-3rem)]">
-            <div class="mb-4 flex items-start justify-between gap-3">
-                <div>
-                    <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-                        <i class="ri-shield-flash-line text-cyan-300"></i>
-                        <span>AegisNexus</span>
-                    </h1>
-                    <p class="text-sm text-gray-400">The Queen Orchestration Core</p>
-                </div>
-                <button id="themeToggle"
-                    class="theme-toggle-btn inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20"
-                    aria-label="Toggle theme">
-                    <i id="themeIcon" class="ri-moon-line text-lg text-cyan-200"></i>
-                </button>
-            </div>
-
-            <div id="personaBox"
-                class="card-panel mb-4 rounded-2xl bg-white/5 p-3 text-sm text-gray-300 ring-1 ring-white/10"></div>
-
-            <div class="card-panel mb-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-300">Agent Control</h2>
-
-                <label class="mb-3 block text-xs text-gray-400">Routing Mode</label>
-                <select id="modeSelect"
-                    class="mb-4 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-100 outline-none focus:border-cyan-400">
-                    <option value="general">General Mode (Queen only)</option>
-                    <option value="full" selected>Full Orchestration</option>
-                    <option value="custom">Custom Override</option>
-                </select>
-
-                <div class="space-y-3 text-sm text-gray-200">
-                    <label class="flex items-center justify-between">
-                        <span class="flex items-center gap-2"><i class="ri-map-2-line"></i><span>Enable
-                                Planner</span></span>
-                        <span class="toggle-switch">
-                            <input type="checkbox" id="plannerToggle" checked />
-                            <span class="toggle-track"></span>
-                        </span>
-                    </label>
-                    <label class="flex items-center justify-between">
-                        <span class="flex items-center gap-2"><i class="ri-cpu-line"></i><span>Enable
-                                Worker</span></span>
-                        <span class="toggle-switch">
-                            <input type="checkbox" id="workerToggle" checked />
-                            <span class="toggle-track"></span>
-                        </span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="card-panel mb-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-300">Execution Indicator</h2>
-                <div id="activeMode"
-                    class="mb-2 inline-flex rounded-full bg-indigo-400/15 px-3 py-1 text-xs font-medium text-indigo-200 ring-1 ring-indigo-300/30">
-                    Mode: full
-                </div>
-                <div id="activeAgent"
-                    class="inline-flex rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-medium text-cyan-100 ring-1 ring-cyan-300/30">
-                    Agent: idle
-                </div>
-            </div>
-
-            <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Agent/System Log</h2>
-            <div id="logList"
-                class="log-surface no-scrollbar flex-1 space-y-2 overflow-auto rounded-2xl bg-black/20 p-2"></div>
-        </div>
-
-        <div
-            class="main-panel relative flex min-h-[calc(100vh-2rem)] flex-col rounded-3xl bg-white/5 p-4 shadow-[0_0_45px_rgba(0,0,0,0.35)] ring-1 ring-white/10 backdrop-blur-xl lg:min-h-[calc(100vh-3rem)] lg:p-6">
-            <div id="chatList" class="no-scrollbar mb-36 flex-1 space-y-4 overflow-auto pr-1"></div>
-
-            <div class="pointer-events-none absolute inset-x-0 bottom-0 p-4 lg:p-6">
-                <div
-                    class="composer-shell pointer-events-auto mx-auto max-w-4xl rounded-3xl bg-black/45 p-3 shadow-[0_0_30px_rgba(56,189,248,0.22)] ring-1 ring-cyan-300/20 backdrop-blur-2xl">
-                    <div class="flex items-end gap-3">
-                        <textarea id="promptInput" rows="2" placeholder="Tulis instruksi untuk The Queen..."
-                            class="max-h-40 min-h-[56px] flex-1 resize-y rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-cyan-400"></textarea>
-                        <div class="flex items-center gap-2">
-                            <button id="continueBtn" disabled
-                                class="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-40"
-                                aria-label="Lanjutkan">
-                                <i class="ri-play-list-add-line text-base"></i>
-                            </button>
-                            <button id="sendBtn"
-                                class="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-                                aria-label="Kirim">
-                                <i class="ri-send-plane-2-fill text-base"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
+        <div id="sidebar-root"></div>
+        <div id="page-root"></div>
+    </div>
 
     <script type="module" src="/app.js"></script>
 </body>
