@@ -1,0 +1,64 @@
+/*
+ * AegisIcons v1
+ * Local SVG icon classes with ag-* prefix.
+ */
+
+[class^="ag-"],
+[class*=" ag-"] {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  vertical-align: -0.12em;
+}
+
+.ag-shield-flash-line {
+  -webkit-mask-image: url("/assets/icons/System/shield-flash-line.svg");
+  mask-image: url("/assets/icons/System/shield-flash-line.svg");
+}
+
+.ag-moon-line {
+  -webkit-mask-image: url("/assets/icons/Weather/moon-line.svg");
+  mask-image: url("/assets/icons/Weather/moon-line.svg");
+}
+
+.ag-sun-line {
+  -webkit-mask-image: url("/assets/icons/Weather/sun-line.svg");
+  mask-image: url("/assets/icons/Weather/sun-line.svg");
+}
+
+.ag-map-2-line {
+  -webkit-mask-image: url("/assets/icons/Map/map-2-line.svg");
+  mask-image: url("/assets/icons/Map/map-2-line.svg");
+}
+
+.ag-cpu-line {
+  -webkit-mask-image: url("/assets/icons/Device/cpu-line.svg");
+  mask-image: url("/assets/icons/Device/cpu-line.svg");
+}
+
+.ag-play-list-add-line {
+  -webkit-mask-image: url("/assets/icons/Media/play-list-add-line.svg");
+  mask-image: url("/assets/icons/Media/play-list-add-line.svg");
+}
+
+.ag-send-plane-2-line {
+  -webkit-mask-image: url("/assets/icons/Business/send-plane-2-line.svg");
+  mask-image: url("/assets/icons/Business/send-plane-2-line.svg");
+}
+
+.ag-contract-left-line {
+  -webkit-mask-image: url("/assets/icons/Arrows/contract-left-line.svg");
+  mask-image: url("/assets/icons/Arrows/contract-left-line.svg");
+}
+
+.ag-contract-right-line {
+  -webkit-mask-image: url("/assets/icons/Arrows/contract-right-line.svg");
+  mask-image: url("/assets/icons/Arrows/contract-right-line.svg");
+}

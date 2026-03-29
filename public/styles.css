@@ -35,6 +35,7 @@ body {
 
 .sidebar-panel {
     border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, #10151d 0%, #0b1017 100%);
 }
 
 .sidebar-panel.sidebar-collapsed {
@@ -51,6 +52,14 @@ body {
 .sidebar-panel.sidebar-collapsed #themeToggle,
 .sidebar-panel.sidebar-collapsed #collapseToggle {
     margin-top: 2px;
+}
+
+.sidebar-panel button {
+    transition: all 0.2s ease;
+}
+
+.sidebar-panel button:hover {
+    transform: translateY(-1px);
 }
 
 #page-root {
@@ -91,6 +100,10 @@ body.theme-light .collapse-toggle-btn {
     background: rgba(15, 23, 42, 0.08) !important;
 }
 
+body.theme-light .sidebar-panel.sidebar-collapsed {
+    background: #f8fafc !important;
+}
+
 body.theme-light .sidebar-panel,
 body.theme-light .main-panel,
 body.theme-light .card-panel,
@@ -121,9 +134,13 @@ body.theme-light #activeAgent {
     border-color: rgba(14, 116, 144, 0.2) !important;
 }
 
-body.theme-light .ri-shield-flash-line,
-body.theme-light .ri-map-2-line,
-body.theme-light .ri-cpu-line {
+body.theme-light .ag-shield-flash-line,
+body.theme-light .ag-map-2-line,
+body.theme-light .ag-cpu-line,
+body.theme-light .ag-moon-line,
+body.theme-light .ag-sun-line,
+body.theme-light .ag-contract-left-line,
+body.theme-light .ag-contract-right-line {
     color: #0f172a !important;
 }
 

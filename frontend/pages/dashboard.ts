@@ -50,12 +50,12 @@ export function createDashboard(options: DashboardOptions): DashboardController 
             <button id="continueBtn" disabled
               class="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-40"
               aria-label="Lanjutkan">
-              <i class="ri-play-list-add-line text-base"></i>
+              <i class="ag-play-list-add-line text-base"></i>
             </button>
             <button id="sendBtn"
               class="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
               aria-label="Kirim">
-              <i class="ri-send-plane-2-fill text-base"></i>
+              <i class="ag-send-plane-2-line text-base"></i>
             </button>
           </div>
         </div>

@@ -6,7 +6,7 @@ export function createSidebar(options) {
     <div class="mb-4 flex items-start justify-between gap-3">
       <div class="sidebar-brand">
         <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <i class="ri-shield-flash-line text-cyan-300"></i>
+          <i class="ag-shield-flash-line text-cyan-300"></i>
           <span>AegisNexus</span>
         </h1>
         <p class="text-sm text-gray-400">The Queen Orchestration Core</p>
@@ -15,15 +15,21 @@ export function createSidebar(options) {
         <button id="themeToggle"
           class="theme-toggle-btn inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20"
           aria-label="Toggle theme">
-          <i id="themeIcon" class="ri-moon-line text-lg text-cyan-200"></i>
+          <i id="themeIcon" class="ag-moon-line text-lg text-cyan-200"></i>
         </button>
         <button id="collapseToggle"
           class="collapse-toggle-btn inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20"
           aria-label="Toggle sidebar">
-          <i id="collapseIcon" class="ri-layout-4-line text-lg text-black-200"></i>
+          <i id="collapseIcon" class="ag-contract-left-line text-lg text-cyan-100"></i>
         </button>
       </div>
     </div>
+
+    <nav class="sidebar-expand-only mb-4 grid grid-cols-3 gap-2 text-xs">
+      <button class="rounded-xl border border-cyan-300/30 bg-cyan-400/15 px-2 py-2 text-cyan-100">Chat</button>
+      <button class="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-gray-300">Overview</button>
+      <button class="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-gray-300">Agents</button>
+    </nav>
 
     <div id="personaBox"
       class="card-panel sidebar-expand-only mb-4 rounded-2xl bg-white/5 p-3 text-sm text-gray-300 ring-1 ring-white/10"></div>
@@ -41,14 +47,14 @@ export function createSidebar(options) {
 
       <div class="space-y-3 text-sm text-gray-200">
         <label class="flex items-center justify-between">
-          <span class="flex items-center gap-2"><i class="ri-map-2-line"></i><span>Enable Planner</span></span>
+          <span class="flex items-center gap-2"><i class="ag-map-2-line"></i><span>Enable Planner</span></span>
           <span class="toggle-switch">
             <input type="checkbox" id="plannerToggle" checked />
             <span class="toggle-track"></span>
           </span>
         </label>
         <label class="flex items-center justify-between">
-          <span class="flex items-center gap-2"><i class="ri-cpu-line"></i><span>Enable Worker</span></span>
+          <span class="flex items-center gap-2"><i class="ag-cpu-line"></i><span>Enable Worker</span></span>
           <span class="toggle-switch">
             <input type="checkbox" id="workerToggle" checked />
             <span class="toggle-track"></span>
@@ -113,9 +119,9 @@ export function createSidebar(options) {
     collapseToggle.addEventListener("click", () => {
         collapsed = !collapsed;
         element.classList.toggle("sidebar-collapsed", collapsed);
-        collapseIcon.src = collapsed
-            ? "/assets/icons/Arrows/contract-right-line.svg"
-            : "/assets/icons/Arrows/contract-left-line.svg";
+        collapseIcon.className = collapsed
+            ? "ag-contract-right-line text-lg text-cyan-100"
+            : "ag-contract-left-line text-lg text-cyan-100";
         options.onCollapseToggle(collapsed);
     });
     return {
@@ -145,16 +151,16 @@ export function createSidebar(options) {
         setTheme(theme) {
             themeIcon.className =
                 theme === "dark"
-                    ? "ri-moon-line text-lg text-cyan-200"
-                    : "ri-sun-line text-lg text-amber-500";
+                    ? "ag-moon-line text-lg text-cyan-200"
+                    : "ag-sun-line text-lg text-amber-500";
             themeToggle.setAttribute("aria-label", theme === "dark" ? "Dark mode active" : "Light mode active");
         },
         setCollapsed(nextCollapsed) {
             collapsed = nextCollapsed;
             element.classList.toggle("sidebar-collapsed", collapsed);
-            collapseIcon.src = collapsed
-                ? "/assets/icons/Arrows/contract-right-line.svg"
-                : "/assets/icons/Arrows/contract-left-line.svg";
+            collapseIcon.className = collapsed
+                ? "ag-contract-right-line text-lg text-cyan-100"
+                : "ag-contract-left-line text-lg text-cyan-100";
         },
         addLog(entry) {
             const item = document.createElement("div");
