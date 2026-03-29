@@ -106,9 +106,24 @@ function getConfiguredWorkspaceRoot() {
   return getDefaultWorkspaceRoot();
 }
 function resolveWorkspacePaths(workspaceRoot = getConfiguredWorkspaceRoot()) {
+  const workspaceDir = path2.join(workspaceRoot, "workspace");
+  const agentsDir = path2.join(workspaceDir, "agents");
+  const orchestratorDir = path2.join(agentsDir, "orchestrator");
+  const plannersDir = path2.join(agentsDir, "planners");
+  const workersDir = path2.join(agentsDir, "workers");
   return {
     projectRoot: PROJECT_ROOT,
     workspaceRoot,
+    workspaceDir,
+    agentsDir,
+    orchestratorDir,
+    plannersDir,
+    workersDir,
+    orchestratorMainFile: path2.join(orchestratorDir, "main.md"),
+    plannerArchitectFile: path2.join(plannersDir, "architect.md"),
+    workerCoderFile: path2.join(workersDir, "coder.md"),
+    workerResearcherFile: path2.join(workersDir, "researcher.md"),
+    workerExecutorFile: path2.join(workersDir, "executor.md"),
     credentialsDir: path2.join(workspaceRoot, "credentials"),
     memoryDir: path2.join(workspaceRoot, "memory"),
     skillsDir: path2.join(workspaceRoot, "skills"),
@@ -153,8 +168,21 @@ async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
       fsp.mkdir(target.memoryDir, { recursive: true }),
       fsp.mkdir(target.skillsDir, { recursive: true }),
       fsp.mkdir(target.logsDir, { recursive: true }),
-      fsp.mkdir(target.runtimeDir, { recursive: true })
+      fsp.mkdir(target.runtimeDir, { recursive: true }),
+      fsp.mkdir(target.workspaceDir, { recursive: true }),
+      fsp.mkdir(target.agentsDir, { recursive: true }),
+      fsp.mkdir(target.orchestratorDir, { recursive: true }),
+      fsp.mkdir(target.plannersDir, { recursive: true }),
+      fsp.mkdir(target.workersDir, { recursive: true })
     ]);
+  };
+  const ensureFileWithDefault = async (filePath, content) => {
+    try {
+      await fsp.access(filePath);
+    } catch {
+      await fsp.writeFile(filePath, `${content.trim()}
+`, "utf8");
+    }
   };
   try {
     await createDirectories(paths);
@@ -181,6 +209,53 @@ async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
       }
     });
   }
+  await Promise.all([
+    ensureFileWithDefault(
+      paths.orchestratorMainFile,
+      [
+        "# The Queen - Orchestrator",
+        "",
+        "You are The Queen, the main orchestrator for AegisNexus.",
+        "Prioritize safe execution, clear delegation, and concise final responses."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.plannerArchitectFile,
+      [
+        "# Architect Planner",
+        "",
+        "Break complex goals into ordered, verifiable subtasks.",
+        "Highlight risks, dependencies, and rollback options."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.workerCoderFile,
+      [
+        "# Coder Worker",
+        "",
+        "Implement code changes with minimal blast radius.",
+        "Preserve interfaces unless explicit migration is requested."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.workerResearcherFile,
+      [
+        "# Researcher Worker",
+        "",
+        "Collect relevant facts quickly and report confidence level.",
+        "Cite exact technical evidence from code or docs."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.workerExecutorFile,
+      [
+        "# Executor Worker",
+        "",
+        "Run planned steps safely and verify outcomes.",
+        "Stop and report blockers immediately when they appear."
+      ].join("\n")
+    )
+  ]);
   const config = await readWorkspaceConfig(paths);
   return { paths, config };
 }
@@ -193,6 +268,7 @@ var PUBLIC_DIR = path3.join(PROJECT_ROOT2, "public");
 var PERSONA_PATH = path3.join(PROJECT_ROOT2, "persona.config.json");
 var PERSONA_MD_PATH = path3.join(PROJECT_ROOT2, "personas", "the_queen.md");
 var WORKSPACE_PATHS = resolveWorkspacePaths();
+var WORKSPACE_QUEEN_PROMPT_PATH = WORKSPACE_PATHS.orchestratorMainFile;
 var TOKEN_PATH = WORKSPACE_PATHS.tokenFile;
 var COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 var PORT = Number(process2.env.AEGIS_NEXUS_PORT || 18410);
@@ -480,6 +556,14 @@ function safeJsonFromText(text, fallback) {
   }
 }
 async function readPersonaMarkdown() {
+  try {
+    const workspacePrompt = await fs3.readFile(WORKSPACE_QUEEN_PROMPT_PATH, "utf8");
+    const trimmedWorkspacePrompt = workspacePrompt.trim();
+    if (trimmedWorkspacePrompt) {
+      return trimmedWorkspacePrompt;
+    }
+  } catch {
+  }
   try {
     const text = await fs3.readFile(PERSONA_MD_PATH, "utf8");
     const trimmed = text.trim();

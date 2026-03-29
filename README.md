@@ -61,6 +61,19 @@ Menu configure mencakup:
 - Token Copilot: `<WORKSPACE_PATH>/credentials/github-copilot.token.json`.
 - PID daemon gateway: `<WORKSPACE_PATH>/runtime/.aegis.pid`.
 
+Struktur agent personas otomatis dibuat:
+
+```text
+<WORKSPACE_PATH>/workspace/agents/
+	orchestrator/main.md
+	planners/architect.md
+	workers/coder.md
+	workers/researcher.md
+	workers/executor.md
+```
+
+Persona Queen runtime akan dibaca dari `workspace/agents/orchestrator/main.md`.
+
 Install dependency CLI modern (jika ingin manual):
 
 ```bash

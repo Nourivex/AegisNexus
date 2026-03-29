@@ -44,9 +44,24 @@ function getConfiguredWorkspaceRoot() {
   return getDefaultWorkspaceRoot();
 }
 function resolveWorkspacePaths(workspaceRoot = getConfiguredWorkspaceRoot()) {
+  const workspaceDir = path.join(workspaceRoot, "workspace");
+  const agentsDir = path.join(workspaceDir, "agents");
+  const orchestratorDir = path.join(agentsDir, "orchestrator");
+  const plannersDir = path.join(agentsDir, "planners");
+  const workersDir = path.join(agentsDir, "workers");
   return {
     projectRoot: PROJECT_ROOT,
     workspaceRoot,
+    workspaceDir,
+    agentsDir,
+    orchestratorDir,
+    plannersDir,
+    workersDir,
+    orchestratorMainFile: path.join(orchestratorDir, "main.md"),
+    plannerArchitectFile: path.join(plannersDir, "architect.md"),
+    workerCoderFile: path.join(workersDir, "coder.md"),
+    workerResearcherFile: path.join(workersDir, "researcher.md"),
+    workerExecutorFile: path.join(workersDir, "executor.md"),
     credentialsDir: path.join(workspaceRoot, "credentials"),
     memoryDir: path.join(workspaceRoot, "memory"),
     skillsDir: path.join(workspaceRoot, "skills"),
@@ -91,8 +106,21 @@ async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
       fsp.mkdir(target.memoryDir, { recursive: true }),
       fsp.mkdir(target.skillsDir, { recursive: true }),
       fsp.mkdir(target.logsDir, { recursive: true }),
-      fsp.mkdir(target.runtimeDir, { recursive: true })
+      fsp.mkdir(target.runtimeDir, { recursive: true }),
+      fsp.mkdir(target.workspaceDir, { recursive: true }),
+      fsp.mkdir(target.agentsDir, { recursive: true }),
+      fsp.mkdir(target.orchestratorDir, { recursive: true }),
+      fsp.mkdir(target.plannersDir, { recursive: true }),
+      fsp.mkdir(target.workersDir, { recursive: true })
     ]);
+  };
+  const ensureFileWithDefault = async (filePath, content) => {
+    try {
+      await fsp.access(filePath);
+    } catch {
+      await fsp.writeFile(filePath, `${content.trim()}
+`, "utf8");
+    }
   };
   try {
     await createDirectories(paths);
@@ -119,6 +147,53 @@ async function ensureWorkspace(workspaceRoot = getConfiguredWorkspaceRoot()) {
       }
     });
   }
+  await Promise.all([
+    ensureFileWithDefault(
+      paths.orchestratorMainFile,
+      [
+        "# The Queen - Orchestrator",
+        "",
+        "You are The Queen, the main orchestrator for AegisNexus.",
+        "Prioritize safe execution, clear delegation, and concise final responses."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.plannerArchitectFile,
+      [
+        "# Architect Planner",
+        "",
+        "Break complex goals into ordered, verifiable subtasks.",
+        "Highlight risks, dependencies, and rollback options."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.workerCoderFile,
+      [
+        "# Coder Worker",
+        "",
+        "Implement code changes with minimal blast radius.",
+        "Preserve interfaces unless explicit migration is requested."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.workerResearcherFile,
+      [
+        "# Researcher Worker",
+        "",
+        "Collect relevant facts quickly and report confidence level.",
+        "Cite exact technical evidence from code or docs."
+      ].join("\n")
+    ),
+    ensureFileWithDefault(
+      paths.workerExecutorFile,
+      [
+        "# Executor Worker",
+        "",
+        "Run planned steps safely and verify outcomes.",
+        "Stop and report blockers immediately when they appear."
+      ].join("\n")
+    )
+  ]);
   const config = await readWorkspaceConfig(paths);
   return { paths, config };
 }

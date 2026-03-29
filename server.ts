@@ -57,6 +57,7 @@ const PUBLIC_DIR = path.join(PROJECT_ROOT, "public");
 const PERSONA_PATH = path.join(PROJECT_ROOT, "persona.config.json");
 const PERSONA_MD_PATH = path.join(PROJECT_ROOT, "personas", "the_queen.md");
 const WORKSPACE_PATHS = resolveWorkspacePaths();
+const WORKSPACE_QUEEN_PROMPT_PATH = WORKSPACE_PATHS.orchestratorMainFile;
 const TOKEN_PATH = WORKSPACE_PATHS.tokenFile;
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const PORT = Number(process.env.AEGIS_NEXUS_PORT || 18410);
@@ -421,6 +422,16 @@ function safeJsonFromText(text: string, fallback: JsonRecord): JsonRecord {
 }
 
 async function readPersonaMarkdown(): Promise<string> {
+  try {
+    const workspacePrompt = await fs.readFile(WORKSPACE_QUEEN_PROMPT_PATH, "utf8");
+    const trimmedWorkspacePrompt = workspacePrompt.trim();
+    if (trimmedWorkspacePrompt) {
+      return trimmedWorkspacePrompt;
+    }
+  } catch {
+    // Fall back to local project prompt below.
+  }
+
   try {
     const text = await fs.readFile(PERSONA_MD_PATH, "utf8");
     const trimmed = text.trim();
