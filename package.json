@@ -1,0 +1,29 @@
+{
+  "name": "aegis-nexus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "aegis": "./dist/index.js"
+  },
+  "scripts": {
+    "aegis": "node ./dist/index.js aegis",
+    "build:web": "tsc -p tsconfig.web.json",
+    "build": "npm run build:web && tsup index.ts aegis.ts server.ts --format esm --target node22 --out-dir dist --clean --no-splitting && node ./scripts/add-shebang.mjs dist/index.js && node ./scripts/add-shebang.mjs dist/aegis.js",
+    "start": "node ./dist/index.js aegis gateway start",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json --noEmit"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.0.0",
+    "better-sqlite3": "^12.4.1",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.5.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}

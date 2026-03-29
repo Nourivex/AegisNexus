@@ -1,5 +1,6 @@
 node_modules/
-aegis-nexus/node_modules/
+.aegis/
+.aegisnexus.path
 *.db
 *.db-shm
 *.db-wal
