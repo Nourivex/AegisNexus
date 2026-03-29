@@ -81,6 +81,16 @@ npm install commander @inquirer/prompts chalk
 npm install -D tsup
 ```
 
+## Aegis Icons (Offline)
+
+- Icon class memakai prefix `ag-` dari nama file SVG di `public/assets/icons/**`.
+- Contoh: `<i class="ag-shield-flash-line text-cyan-300"></i>`.
+- Generate/refresh class otomatis:
+
+```bash
+npm run icons:gen
+```
+
 ## Catatan
 
 - Server membaca token + konfigurasi dari global workspace AegisNexus.

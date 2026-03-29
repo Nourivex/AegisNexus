@@ -8,7 +8,8 @@
   },
   "scripts": {
     "aegis": "node ./dist/index.js aegis",
-    "build:web": "tsc -p tsconfig.web.json",
+    "icons:gen": "node ./scripts/generate-aegisicons.mjs",
+    "build:web": "npm run icons:gen && tsc -p tsconfig.web.json",
     "build": "npm run build:web && tsup index.ts aegis.ts server.ts --format esm --target node22 --out-dir dist --clean --no-splitting && node ./scripts/add-shebang.mjs dist/index.js && node ./scripts/add-shebang.mjs dist/aegis.js",
     "start": "node ./dist/index.js aegis gateway start",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json --noEmit"
