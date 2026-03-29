@@ -2,8 +2,11 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const projectRoot = process.cwd();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "..");
 const iconsDir = path.join(projectRoot, "public", "assets", "icons");
 const outputFile = path.join(projectRoot, "public", "assets", "css", "aegisicons.css");
 
@@ -33,7 +36,7 @@ async function collectSvgFiles(dir, acc = []) {
 
 function encodedIconUrl(relativePath) {
   const asPosix = relativePath.split(path.sep).join("/");
-  return `/assets/icons/${encodeURI(asPosix)}`;
+  return `../icons/${encodeURI(asPosix)}`;
 }
 
 async function main() {

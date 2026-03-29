@@ -903,11 +903,13 @@ function contentType(filePath) {
   if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
   if (filePath.endsWith(".js")) return "application/javascript; charset=utf-8";
   if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (filePath.endsWith(".svg")) return "image/svg+xml; charset=utf-8";
   return "text/plain; charset=utf-8";
 }
 async function serveStatic(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
-  const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+  const rawPathname = url.pathname === "/" ? "/index.html" : url.pathname;
+  const pathname = decodeURIComponent(rawPathname);
   const resolved = path3.normalize(path3.join(PUBLIC_DIR, pathname));
   if (!resolved.startsWith(PUBLIC_DIR)) {
     sendJson(res, 403, { error: "Forbidden" });
